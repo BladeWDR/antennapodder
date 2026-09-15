@@ -1,0 +1,18 @@
+services:
+  antennapodder:
+    build: .
+    container_name: antennapodder
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATA_DIR=/data
+      - ANTENNAPODDER_USER=admin
+      - ANTENNAPODDER_PASS=admin
+    volumes:
+      - antennapodder_data:/data
+
+volumes:
+  antennapodder_data:
+    driver: local
