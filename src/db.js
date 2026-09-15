@@ -438,7 +438,11 @@ export function getPodcastById(db, podcastId, userId) {
            COALESCE(es.is_played, 0) as is_played,
            es.updated_at as state_updated_at
     FROM episodes e
-    LEFT JOIN episode_states es ON es.episode_url = e.enclosure_url AND es.user_id = ?
+    LEFT JOIN episode_states es ON es.user_id = ? AND (
+      es.episode_url = e.enclosure_url
+      OR (e.guid IS NOT NULL AND es.guid IS NOT NULL AND es.guid = e.guid)
+      OR (e.guid IS NOT NULL AND es.episode_url = e.guid)
+    )
     WHERE e.podcast_id = ?
     ORDER BY e.pub_date DESC
   `).all(userId, podcastId);
@@ -459,9 +463,33 @@ export function getEpisodeById(db, episodeId, userId) {
            COALESCE(es.is_played, 0) as is_played
     FROM episodes e
     JOIN podcasts p ON p.id = e.podcast_id
-    LEFT JOIN episode_states es ON es.episode_url = e.enclosure_url AND es.user_id = ?
+    LEFT JOIN episode_states es ON es.user_id = ? AND (
+      es.episode_url = e.enclosure_url
+      OR (e.guid IS NOT NULL AND es.guid IS NOT NULL AND es.guid = e.guid)
+      OR (e.guid IS NOT NULL AND es.episode_url = e.guid)
+    )
     WHERE e.id = ?
   `).get(userId, episodeId);
+}
+
+export function getInProgressEpisodes(db, userId, limit = 12) {
+  return db.prepare(`
+    SELECT e.*, p.id as podcast_id, p.title as podcast_title, p.url as podcast_url, p.image_url as podcast_image_url,
+           es.position,
+           COALESCE(es.total, e.duration) as total_duration,
+           es.is_played,
+           es.updated_at as state_updated_at
+    FROM episode_states es
+    JOIN episodes e ON (
+      e.enclosure_url = es.episode_url
+      OR (e.guid IS NOT NULL AND es.guid IS NOT NULL AND e.guid = es.guid)
+      OR (e.guid IS NOT NULL AND e.guid = es.episode_url)
+    )
+    JOIN podcasts p ON p.id = e.podcast_id
+    WHERE es.user_id = ? AND es.position > 0 AND es.is_played = 0
+    ORDER BY es.updated_at DESC
+    LIMIT ?
+  `).all(userId, limit);
 }
 
 export function getEpisodeByUrl(db, episodeUrl) {
@@ -596,16 +624,48 @@ export function applyEpisodeActionsFromClient(db, userId, actions) {
   if (!Array.isArray(actions)) return { update_urls: [], timestamp: now };
 
   for (const act of actions) {
-    if (!act.podcast || !act.episode) continue;
+    if (!act) continue;
 
-    const podcastUrl = act.podcast;
-    const episodeUrl = act.episode;
-    const guid = act.guid || null;
-    const position = parseInt(act.position, 10) || 0;
-    const total = parseInt(act.total, 10) || 0;
+    const podcastUrl = act.podcast ? String(act.podcast).trim() : null;
+    let episodeUrl = act.episode ? String(act.episode).trim() : null;
+    let guid = act.guid ? String(act.guid).trim() : null;
+
+    // Must have at least episodeUrl or guid
+    if (!episodeUrl && !guid) continue;
+
+    const rawPos = parseInt(act.position, 10);
+    const position = isNaN(rawPos) || rawPos < 0 ? 0 : rawPos;
+    const rawTotal = parseInt(act.total, 10);
+    let total = isNaN(rawTotal) || rawTotal < 0 ? 0 : rawTotal;
     const device = act.device || 'antennapod';
     const action = act.action || 'play';
     const actionTimestamp = act.timestamp || new Date().toISOString();
+
+    // Resolve matching episode in DB
+    let epRow = null;
+    if (guid) {
+      epRow = db.prepare('SELECT id, guid, enclosure_url, duration, podcast_id FROM episodes WHERE guid = ? LIMIT 1').get(guid);
+    }
+    if (!epRow && episodeUrl) {
+      epRow = db.prepare('SELECT id, guid, enclosure_url, duration, podcast_id FROM episodes WHERE enclosure_url = ? LIMIT 1').get(episodeUrl);
+    }
+    if (!epRow && episodeUrl) {
+      epRow = db.prepare('SELECT id, guid, enclosure_url, duration, podcast_id FROM episodes WHERE guid = ? LIMIT 1').get(episodeUrl);
+    }
+    if (!epRow && episodeUrl && episodeUrl.includes('?')) {
+      const baseEpUrl = episodeUrl.split('?')[0];
+      epRow = db.prepare('SELECT id, guid, enclosure_url, duration, podcast_id FROM episodes WHERE enclosure_url LIKE ? LIMIT 1').get(`${baseEpUrl}%`);
+    }
+
+    let canonicalEpisodeUrl = episodeUrl || (epRow ? epRow.enclosure_url : guid);
+    let canonicalGuid = guid || (epRow ? epRow.guid : null);
+    if (epRow) {
+      canonicalEpisodeUrl = epRow.enclosure_url;
+      if (!canonicalGuid && epRow.guid) canonicalGuid = epRow.guid;
+      if (total <= 0 && epRow.duration > 0) {
+        total = epRow.duration;
+      }
+    }
 
     let isPlayed = 0;
     if (action === 'play') {
@@ -616,32 +676,56 @@ export function applyEpisodeActionsFromClient(db, userId, actions) {
       isPlayed = 0;
     }
 
-    // Upsert episode_states
-    const existing = db.prepare('SELECT position, total, is_played, updated_at FROM episode_states WHERE user_id = ? AND episode_url = ?').get(userId, episodeUrl);
+    let resolvedPodcastUrl = podcastUrl;
+    if (!resolvedPodcastUrl && epRow) {
+      const pRow = db.prepare('SELECT url FROM podcasts WHERE id = ?').get(epRow.podcast_id);
+      if (pRow) resolvedPodcastUrl = pRow.url;
+    }
+    if (!resolvedPodcastUrl) resolvedPodcastUrl = 'unknown';
+
+    // Find existing state by canonical URL or GUID
+    const existing = db.prepare(`
+      SELECT rowid, position, total, is_played, updated_at
+      FROM episode_states
+      WHERE user_id = ? AND (
+        episode_url = ?
+        OR (guid IS NOT NULL AND ? IS NOT NULL AND guid = ?)
+        OR (? IS NOT NULL AND episode_url = ?)
+      )
+      LIMIT 1
+    `).get(userId, canonicalEpisodeUrl, canonicalGuid, canonicalGuid, canonicalGuid);
 
     if (existing) {
       db.prepare(`
         UPDATE episode_states 
         SET podcast_url = ?,
+            episode_url = ?,
             guid = COALESCE(?, guid),
             position = ?,
             total = CASE WHEN ? > 0 THEN ? ELSE total END,
             is_played = ?,
             updated_at = ?
-        WHERE user_id = ? AND episode_url = ?
-      `).run(podcastUrl, guid, position, total, total, isPlayed, now, userId, episodeUrl);
+        WHERE rowid = ?
+      `).run(resolvedPodcastUrl, canonicalEpisodeUrl, canonicalGuid, position, total, total, isPlayed, now, existing.rowid);
     } else {
       db.prepare(`
         INSERT INTO episode_states (user_id, podcast_url, episode_url, guid, position, total, is_played, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(userId, podcastUrl, episodeUrl, guid, position, total, isPlayed, now);
+        ON CONFLICT(user_id, episode_url) DO UPDATE SET
+          podcast_url = excluded.podcast_url,
+          guid = COALESCE(excluded.guid, episode_states.guid),
+          position = excluded.position,
+          total = CASE WHEN excluded.total > 0 THEN excluded.total ELSE episode_states.total END,
+          is_played = excluded.is_played,
+          updated_at = excluded.updated_at
+      `).run(userId, resolvedPodcastUrl, canonicalEpisodeUrl, canonicalGuid, position, total, isPlayed, now);
     }
 
     // Record action in log
     db.prepare(`
       INSERT INTO episode_actions (user_id, podcast_url, episode_url, guid, action, position, started, total, device, action_timestamp, created_at_epoch)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, podcastUrl, episodeUrl, guid, action, position, act.started || 0, total, device, actionTimestamp, now);
+    `).run(userId, resolvedPodcastUrl, canonicalEpisodeUrl, canonicalGuid, action, position, parseInt(act.started, 10) || 0, total, device, actionTimestamp, now);
   }
 
   return { update_urls: [], timestamp: now };

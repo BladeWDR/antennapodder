@@ -44,6 +44,8 @@
     btnLogout: document.getElementById('btn-logout'),
 
     // Library
+    continueSection: document.getElementById('continue-listening-section'),
+    continueGrid: document.getElementById('continue-listening-grid'),
     libraryGrid: document.getElementById('library-grid'),
     libraryEmpty: document.getElementById('library-empty'),
     btnEmptyAdd: document.getElementById('btn-empty-add'),
@@ -268,7 +270,10 @@
   // Library Loader
   async function loadLibrary() {
     try {
-      const res = await fetch('/api/library');
+      const [res, inProgRes] = await Promise.all([
+        fetch('/api/library'),
+        fetch('/api/episodes/in-progress').catch(() => null)
+      ]);
       if (res.status === 401) {
         el.modalLogin.classList.add('active');
         return;
@@ -276,9 +281,73 @@
       const data = await res.json();
       state.subscriptions = data.subscriptions || [];
       renderLibrary();
+
+      if (inProgRes && inProgRes.ok) {
+        const inProgData = await inProgRes.json();
+        renderContinueListening(inProgData.episodes || []);
+      } else if (el.continueSection) {
+        el.continueSection.style.display = 'none';
+      }
     } catch (e) {
       showToast('Failed to load library: ' + e.message, true);
     }
+  }
+
+  function renderContinueListening(episodes) {
+    if (!el.continueSection || !el.continueGrid) return;
+    if (!episodes || episodes.length === 0) {
+      el.continueSection.style.display = 'none';
+      el.continueGrid.innerHTML = '';
+      return;
+    }
+
+    el.continueSection.style.display = 'block';
+    el.continueGrid.innerHTML = '';
+
+    episodes.forEach(ep => {
+      const card = document.createElement('div');
+      card.className = 'continue-card';
+
+      const progressPercent = ep.total_duration > 0
+        ? Math.min(100, Math.round((ep.position / ep.total_duration) * 100))
+        : 0;
+
+      const remainingSec = Math.max(0, (ep.total_duration || 0) - ep.position);
+      const remainingText = remainingSec > 0 ? `${formatTime(remainingSec)} left` : `${formatTime(ep.position)} listened`;
+      const artUrl = ep.image_url || ep.podcast_image_url || '/icons/icon-192.png';
+
+      card.innerHTML = `
+        <div class="continue-card-art-wrap">
+          <img class="continue-card-art" src="${escapeHtml(artUrl)}" alt="" loading="lazy" onerror="this.src='/icons/icon-192.png'">
+          <div class="continue-card-play-overlay">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </div>
+        </div>
+        <div class="continue-card-body">
+          <div class="continue-card-podcast">${escapeHtml(ep.podcast_title || 'Podcast')}</div>
+          <div class="continue-card-title">${escapeHtml(ep.title)}</div>
+          <div class="continue-progress-bar">
+            <div class="continue-progress-fill" style="width: ${progressPercent}%;"></div>
+          </div>
+          <div class="continue-card-time">
+            <span>${formatTime(ep.position)}</span>
+            <span>${remainingText}</span>
+          </div>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        const podcastObj = {
+          id: ep.podcast_id,
+          title: ep.podcast_title,
+          url: ep.podcast_url,
+          image_url: ep.podcast_image_url
+        };
+        playEpisode(ep, podcastObj);
+      });
+
+      el.continueGrid.appendChild(card);
+    });
   }
 
   function renderLibrary() {

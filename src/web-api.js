@@ -13,6 +13,7 @@ import {
   getPodcastById,
   getPodcastByUrl,
   getEpisodeById,
+  getInProgressEpisodes,
   updateEpisodePlayback,
   toggleEpisodePlayed,
   getConfig,
@@ -270,6 +271,14 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
       return true;
     }
     sendJson(200, { success: true, state: result });
+    return true;
+  }
+
+  // In-Progress Episodes: GET /api/episodes/in-progress
+  if (pathname === '/api/episodes/in-progress' && method === 'GET') {
+    const limit = parseInt(query.get('limit'), 10) || 12;
+    const episodes = getInProgressEpisodes(db, authUser.id, limit);
+    sendJson(200, { episodes });
     return true;
   }
 

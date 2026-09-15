@@ -111,6 +111,43 @@ export async function syncFeedInBackground(db, feedUrl) {
   }
 }
 
+export function extractActionsFromBody(body) {
+  if (!body) return [];
+  if (Array.isArray(body)) return body;
+
+  if (typeof body === 'string') {
+    try {
+      const parsed = JSON.parse(body);
+      return extractActionsFromBody(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (body.actions !== undefined) {
+    if (Array.isArray(body.actions)) {
+      return body.actions;
+    }
+    if (typeof body.actions === 'string') {
+      try {
+        const parsed = JSON.parse(body.actions);
+        return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      } catch {
+        return [];
+      }
+    }
+    if (typeof body.actions === 'object' && body.actions !== null) {
+      return [body.actions];
+    }
+  }
+
+  if (body.podcast || body.episode || body.guid) {
+    return [body];
+  }
+
+  return [];
+}
+
 export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   const method = req.method.toUpperCase();
 
@@ -458,7 +495,7 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
     }
 
     if (method === 'POST') {
-      const actions = Array.isArray(body) ? body : (body?.actions || []);
+      const actions = extractActionsFromBody(body);
       const result = applyEpisodeActionsFromClient(db, authUser.id, actions);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
@@ -495,8 +532,33 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
 
     // Subscriptions Change POST
     if (subPath === '/subscription_change/create' && method === 'POST') {
-      const addList = Array.isArray(body?.add) ? body.add : (body?.['add[]'] ? (Array.isArray(body['add[]']) ? body['add[]'] : [body['add[]']]) : []);
-      const removeList = Array.isArray(body?.remove) ? body.remove : (body?.['remove[]'] ? (Array.isArray(body['remove[]']) ? body['remove[]'] : [body['remove[]']]) : []);
+      let addList = [];
+      if (Array.isArray(body?.add)) {
+        addList = body.add;
+      } else if (typeof body?.add === 'string') {
+        try {
+          const parsed = JSON.parse(body.add);
+          addList = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          addList = [body.add];
+        }
+      } else if (body?.['add[]']) {
+        addList = Array.isArray(body['add[]']) ? body['add[]'] : [body['add[]']];
+      }
+
+      let removeList = [];
+      if (Array.isArray(body?.remove)) {
+        removeList = body.remove;
+      } else if (typeof body?.remove === 'string') {
+        try {
+          const parsed = JSON.parse(body.remove);
+          removeList = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          removeList = [body.remove];
+        }
+      } else if (body?.['remove[]']) {
+        removeList = Array.isArray(body['remove[]']) ? body['remove[]'] : [body['remove[]']];
+      }
 
       for (const url of addList) {
         if (typeof url === 'string' && url.trim()) {
@@ -529,14 +591,7 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
 
     // Episode Action Create POST
     if (subPath === '/episode_action/create' && method === 'POST') {
-      let actions = [];
-      if (Array.isArray(body)) {
-        actions = body;
-      } else if (Array.isArray(body?.actions)) {
-        actions = body.actions;
-      } else if (body && (body.podcast || body.episode)) {
-        actions = [body];
-      }
+      const actions = extractActionsFromBody(body);
       applyEpisodeActionsFromClient(db, authUser.id, actions);
       const now = Math.floor(Date.now() / 1000);
       res.writeHead(200, { 'Content-Type': 'application/json' });
