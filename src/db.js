@@ -22,8 +22,15 @@ export function getDatabase(dataDir = null) {
   if (dbInstance) return dbInstance;
 
   const targetDir = dataDir || process.env.DATA_DIR || path.join(process.cwd(), 'data');
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
+  try {
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    fs.accessSync(targetDir, fs.constants.W_OK);
+  } catch (err) {
+    console.error(`[Database Error] Target directory "${targetDir}" is not writable: ${err.message}`);
+    console.error(`[Database Error] Current process UID: ${process.getuid ? process.getuid() : 'unknown'}, GID: ${process.getgid ? process.getgid() : 'unknown'}`);
+    throw err;
   }
 
   const dbPath = path.join(targetDir, 'antennapodder.db');
