@@ -389,6 +389,10 @@
   }
 
   function renderLibrary() {
+    if (el.podcastSortSelect && el.podcastSortSelect.value !== state.podcastSort) {
+      el.podcastSortSelect.value = state.podcastSort;
+    }
+
     let list = [...state.subscriptions];
 
     // Filter favorites
@@ -398,12 +402,20 @@
 
     // Sort list
     if (state.podcastSort === 'alpha') {
-      list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      list.sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true }));
     } else if (state.podcastSort === 'episodes') {
-      list.sort((a, b) => (b.total_episodes || 0) - (a.total_episodes || 0));
+      list.sort((a, b) => {
+        const diff = (Number(b.total_episodes) || 0) - (Number(a.total_episodes) || 0);
+        return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true });
+      });
     } else {
       // Default: most recently updated
-      list.sort((a, b) => (b.latest_pub_date || b.last_fetched_at || 0) - (a.latest_pub_date || a.last_fetched_at || 0));
+      list.sort((a, b) => {
+        const dateA = Number(a.latest_pub_date || a.last_fetched_at || 0);
+        const dateB = Number(b.latest_pub_date || b.last_fetched_at || 0);
+        const diff = dateB - dateA;
+        return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true });
+      });
     }
 
     el.libraryGrid.innerHTML = '';
@@ -419,6 +431,10 @@
     list.forEach(pod => {
       const card = document.createElement('div');
       card.className = 'podcast-card';
+      const epCountText = pod.total_episodes != null ? `${pod.total_episodes} ${pod.total_episodes === 1 ? 'ep' : 'eps'}` : '';
+      const dateText = pod.latest_pub_date ? formatDate(pod.latest_pub_date) : '';
+      const metaParts = [epCountText, dateText].filter(Boolean).join(' &bull; ');
+
       card.innerHTML = `
         <button class="podcast-card-fav ${pod.is_favorite ? 'active' : ''}" title="${pod.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="${pod.is_favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -430,6 +446,7 @@
         <div class="podcast-card-info">
           <div class="podcast-card-title">${escapeHtml(pod.title)}</div>
           <div class="podcast-card-author">${escapeHtml(pod.author || '')}</div>
+          ${metaParts ? `<div class="podcast-card-meta" style="font-size: 0.75rem; color: var(--theme-muted); margin-top: 0.25rem;">${metaParts}</div>` : ''}
         </div>
       `;
 
@@ -1209,11 +1226,13 @@
   // Library Sorting & Filtering
   if (el.podcastSortSelect) {
     el.podcastSortSelect.value = state.podcastSort;
-    el.podcastSortSelect.addEventListener('change', (e) => {
+    const handleSortChange = (e) => {
       state.podcastSort = e.target.value;
       localStorage.setItem('antennapodder_podcast_sort', state.podcastSort);
       renderLibrary();
-    });
+    };
+    el.podcastSortSelect.addEventListener('change', handleSortChange);
+    el.podcastSortSelect.addEventListener('input', handleSortChange);
   }
 
   if (el.filterPodAll) {

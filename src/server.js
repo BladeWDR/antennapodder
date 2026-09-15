@@ -109,11 +109,8 @@ function serveStaticFile(req, res, filePath) {
 
     // Static cache for assets
     const headers = { 'Content-Type': contentType };
-    if (ext !== '.html') {
-      headers['Cache-Control'] = 'public, max-age=86400';
-    } else {
-      headers['Cache-Control'] = 'no-cache';
-    }
+    // Prevent stale caching so client script updates are received immediately
+    headers['Cache-Control'] = 'no-cache, must-revalidate';
 
     res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
