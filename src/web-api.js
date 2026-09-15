@@ -42,6 +42,11 @@ export function getAuthenticatedUser(db, req) {
 }
 
 export async function handleWebRoutes(db, req, res, pathname, query, body) {
+  // Only handle /api/ routes; let static assets and index.html fall through
+  if (!pathname.startsWith('/api/')) {
+    return false;
+  }
+
   const method = req.method.toUpperCase();
 
   // Helper JSON responder
