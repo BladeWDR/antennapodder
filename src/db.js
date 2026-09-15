@@ -149,9 +149,12 @@ export function getDatabase(dataDir = null) {
 
     CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id, pub_date DESC);
     CREATE INDEX IF NOT EXISTS idx_episodes_enclosure ON episodes(enclosure_url);
+    CREATE INDEX IF NOT EXISTS idx_episodes_podcast_stats ON episodes(podcast_id, pub_date);
     CREATE INDEX IF NOT EXISTS idx_episode_actions_sync ON episode_actions(user_id, created_at_epoch);
     CREATE INDEX IF NOT EXISTS idx_subscription_log_sync ON subscription_log(user_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_episode_states_user_pod ON episode_states(user_id, podcast_url);
+    CREATE INDEX IF NOT EXISTS idx_episode_states_user_played ON episode_states(user_id, is_played, podcast_url);
+    CREATE INDEX IF NOT EXISTS idx_episode_states_inprogress ON episode_states(user_id, is_played, position, updated_at DESC);
   `);
 
   // Migrations for favorites
@@ -295,18 +298,22 @@ export function getUserSubscriptions(db, userId) {
   return db.prepare(`
     SELECT s.podcast_url, p.id, p.title, p.description, p.image_url, p.author, p.link, p.last_fetched_at,
            COALESCE(s.is_favorite, 0) as is_favorite,
-           (SELECT COALESCE(NULLIF(MAX(e.pub_date), 0), p.last_fetched_at, 0) FROM episodes e WHERE e.podcast_id = p.id) as latest_pub_date,
-           (SELECT COUNT(*) FROM episodes e WHERE e.podcast_id = p.id) as total_episodes,
-           (SELECT COUNT(*) FROM episodes e 
-            LEFT JOIN episode_states es ON (
-              es.episode_url = e.enclosure_url
-              OR (e.guid IS NOT NULL AND es.guid IS NOT NULL AND e.guid = es.guid)
-              OR (e.guid IS NOT NULL AND e.guid = es.episode_url)
-            ) AND es.user_id = ?
-            WHERE e.podcast_id = p.id AND (es.is_played IS NULL OR es.is_played = 0)
-           ) as unplayed_episodes
+           COALESCE(NULLIF(stats.latest_pub_date, 0), p.last_fetched_at, 0) as latest_pub_date,
+           COALESCE(stats.total_episodes, 0) as total_episodes,
+           MAX(0, COALESCE(stats.total_episodes, 0) - COALESCE(played.played_count, 0)) as unplayed_episodes
     FROM subscriptions s
     JOIN podcasts p ON p.url = s.podcast_url
+    LEFT JOIN (
+      SELECT podcast_id, COUNT(*) as total_episodes, MAX(pub_date) as latest_pub_date
+      FROM episodes
+      GROUP BY podcast_id
+    ) stats ON stats.podcast_id = p.id
+    LEFT JOIN (
+      SELECT podcast_url, COUNT(*) as played_count
+      FROM episode_states
+      WHERE user_id = ? AND is_played = 1
+      GROUP BY podcast_url
+    ) played ON played.podcast_url = s.podcast_url
     WHERE s.user_id = ? AND s.is_active = 1
     ORDER BY p.title COLLATE NOCASE ASC
   `).all(userId, userId);
@@ -514,16 +521,19 @@ export function getInProgressEpisodes(db, userId, limit = 12) {
            es.is_played,
            COALESCE(es.is_favorite, 0) as is_favorite,
            es.updated_at as state_updated_at
-    FROM episode_states es
+    FROM (
+      SELECT * FROM episode_states
+      WHERE user_id = ? AND position > 0 AND is_played = 0
+      ORDER BY updated_at DESC
+      LIMIT ?
+    ) es
     JOIN episodes e ON (
       e.enclosure_url = es.episode_url
       OR (e.guid IS NOT NULL AND es.guid IS NOT NULL AND e.guid = es.guid)
       OR (e.guid IS NOT NULL AND e.guid = es.episode_url)
     )
     JOIN podcasts p ON p.id = e.podcast_id
-    WHERE es.user_id = ? AND es.position > 0 AND es.is_played = 0
     ORDER BY es.updated_at DESC
-    LIMIT ?
   `).all(userId, limit);
 }
 

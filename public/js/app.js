@@ -287,7 +287,6 @@
         }
         updateSkipBadges();
         el.modalLogin.classList.remove('active');
-        handleHashRoute();
       } else {
         el.modalLogin.classList.add('active');
       }
@@ -428,6 +427,7 @@
     el.libraryEmpty.style.display = 'none';
     el.libraryGrid.style.display = 'grid';
 
+    const fragment = document.createDocumentFragment();
     list.forEach(pod => {
       const card = document.createElement('div');
       card.className = 'podcast-card';
@@ -441,7 +441,7 @@
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
           </svg>
         </button>
-        <img class="podcast-card-img" src="${pod.image_url || '/favicon.ico'}" alt="${pod.title}" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'><rect fill=\\'%23313244\\' width=\\'100\\' height=\\'100\\'/><text fill=\\'%23bac2de\\' x=\\'50\\' y=\\'55\\' font-size=\\'12\\' text-anchor=\\'middle\\'>Podcast</text></svg>'">
+        <img class="podcast-card-img" src="${pod.image_url || '/favicon.ico'}" alt="${pod.title}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'><rect fill=\\'%23313244\\' width=\\'100\\' height=\\'100\\'/><text fill=\\'%23bac2de\\' x=\\'50\\' y=\\'55\\' font-size=\\'12\\' text-anchor=\\'middle\\'>Podcast</text></svg>'">
         ${pod.unplayed_episodes > 0 ? `<div class="podcast-card-badge">${pod.unplayed_episodes} new</div>` : ''}
         <div class="podcast-card-info">
           <div class="podcast-card-title">${escapeHtml(pod.title)}</div>
@@ -457,8 +457,9 @@
       });
 
       card.addEventListener('click', () => openPodcastDetail(pod.id));
-      el.libraryGrid.appendChild(card);
+      fragment.appendChild(card);
     });
+    el.libraryGrid.appendChild(fragment);
   }
 
   async function togglePodcastFavoriteApi(podcastId) {
@@ -1363,6 +1364,7 @@
   // Initialization
   const savedTheme = localStorage.getItem('antennapodder_theme') || 'mocha';
   applyTheme(savedTheme);
+  handleHashRoute();
   checkAuth();
 
 })();
