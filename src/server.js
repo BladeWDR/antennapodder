@@ -134,10 +134,25 @@ const server = http.createServer(async (req, res) => {
   }
 
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const pathname = urlObj.pathname;
-  const query = urlObj.searchParams;
+  
+  // Normalize pathname: collapse multiple slashes and handle subpath duplicates
+  let pathname = urlObj.pathname.replace(/\/+/g, '/');
+  if (pathname.startsWith('/api/2/api/2/')) {
+    pathname = pathname.replace('/api/2/api/2/', '/api/2/');
+  }
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    pathname = pathname.slice(0, -1);
+  }
 
+  const query = urlObj.searchParams;
   const body = await parseRequestBody(req);
+
+  // Request logger
+  res.on('finish', () => {
+    if (!pathname.startsWith('/css/') && !pathname.startsWith('/js/') && !pathname.endsWith('.ico')) {
+      console.log(`[HTTP] ${req.method} ${pathname} -> ${res.statusCode}`);
+    }
+  });
 
   try {
     // 1. gPodder API & Nextcloud gpoddersync compatibility
@@ -184,7 +199,8 @@ async function refreshAllSubscribedFeeds() {
 }
 
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
-setInterval(refreshAllSubscribedFeeds, REFRESH_INTERVAL_MS);
+const refreshTimer = setInterval(refreshAllSubscribedFeeds, REFRESH_INTERVAL_MS);
+if (refreshTimer.unref) refreshTimer.unref();
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[AntennaPodder] Companion server listening on http://0.0.0.0:${PORT}`);

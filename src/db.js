@@ -183,7 +183,9 @@ export function getDatabase(dataDir = null) {
 
 // User & Auth operations
 export function getUserByUsername(db, username) {
-  return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (!username) return null;
+  const clean = String(username).trim();
+  return db.prepare('SELECT * FROM users WHERE LOWER(username) = LOWER(?)').get(clean);
 }
 
 export function getUserById(db, id) {

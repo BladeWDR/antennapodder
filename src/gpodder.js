@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import {
   getUserByUsername,
   verifyPassword,
@@ -16,6 +17,20 @@ import {
 } from './db.js';
 import { fetchAndParseFeed } from './feed-parser.js';
 
+// In-memory store for Nextcloud Login Flow v2
+const nextcloudFlows = new Map();
+
+// Periodic cleanup of stale login flows (older than 20 mins)
+const cleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of nextcloudFlows.entries()) {
+    if (val && val.createdAt && (now - val.createdAt > 20 * 60 * 1000)) {
+      nextcloudFlows.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+if (cleanupTimer.unref) cleanupTimer.unref();
+
 export function authenticateGpodderRequest(db, req) {
   // 1. Check HTTP Basic Auth header
   const authHeader = req.headers['authorization'];
@@ -24,11 +39,18 @@ export function authenticateGpodderRequest(db, req) {
       const creds = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
       const colonIdx = creds.indexOf(':');
       if (colonIdx !== -1) {
-        const username = creds.slice(0, colonIdx);
+        const username = creds.slice(0, colonIdx).trim();
         const password = creds.slice(colonIdx + 1);
         const user = getUserByUsername(db, username);
-        if (user && verifyPassword(password, user.password_hash, user.salt)) {
-          return { id: user.id, username: user.username };
+        if (user) {
+          if (verifyPassword(password, user.password_hash, user.salt)) {
+            return { id: user.id, username: user.username };
+          }
+          // Also allow passing session token as password (app passwords / tokens)
+          const session = getSession(db, password.trim());
+          if (session && session.user_id === user.id) {
+            return { id: user.id, username: user.username };
+          }
         }
       }
     } catch (e) {
@@ -36,17 +58,37 @@ export function authenticateGpodderRequest(db, req) {
     }
   }
 
-  // 2. Check Cookie
+  // 2. Check Bearer token header
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    const session = getSession(db, token);
+    if (session) {
+      return { id: session.user_id, username: session.username };
+    }
+  }
+
+  // 3. Check X-Session-ID header
+  const xSession = req.headers['x-session-id'] || req.headers['x-sessionid'];
+  if (xSession) {
+    const session = getSession(db, String(xSession).trim());
+    if (session) {
+      return { id: session.user_id, username: session.username };
+    }
+  }
+
+  // 4. Check Cookie (supporting sessionid, session_id, and unquoted / quoted values)
   const cookieHeader = req.headers['cookie'];
   if (cookieHeader) {
     const cookies = Object.fromEntries(
       cookieHeader.split(';').map(c => {
         const [k, ...v] = c.trim().split('=');
-        return [k, v.join('=')];
+        return [k ? k.trim() : '', v.join('=').trim()];
       })
     );
-    if (cookies.sessionid) {
-      const session = getSession(db, cookies.sessionid);
+    const rawToken = cookies.sessionid || cookies.session_id || cookies.session;
+    if (rawToken) {
+      const cleanToken = rawToken.replace(/^["']|["']$/g, '').trim();
+      const session = getSession(db, cleanToken);
       if (session) {
         return { id: session.user_id, username: session.username };
       }
@@ -73,18 +115,147 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   const method = req.method.toUpperCase();
 
   // ----------------------------------------------------
+  // Nextcloud Status endpoint: /status.php and /index.php/status.php
+  // ----------------------------------------------------
+  if (pathname === '/status.php' || pathname === '/index.php/status.php') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      installed: true,
+      maintenance: false,
+      needsDbUpgrade: false,
+      version: '28.0.0.1',
+      versionstring: '28.0.0',
+      edition: '',
+      productname: 'AntennaPodder Nextcloud Compatibility'
+    }));
+    return true;
+  }
+
+  // ----------------------------------------------------
+  // Nextcloud Login Flow v2:
+  // POST /index.php/login/v2 and POST /login/v2
+  // ----------------------------------------------------
+  if ((pathname === '/index.php/login/v2' || pathname === '/login/v2') && method === 'POST') {
+    const pollToken = crypto.randomBytes(32).toString('hex');
+    const flowToken = crypto.randomBytes(32).toString('hex');
+    const host = req.headers.host || 'localhost:3000';
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const baseUrl = `${proto}://${host}`;
+
+    // Associate poll token with flow token
+    const flowData = {
+      flowToken,
+      pollToken,
+      createdAt: Date.now(),
+      approvedUser: null
+    };
+    nextcloudFlows.set(pollToken, flowData);
+    nextcloudFlows.set(flowToken, flowData);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      poll: {
+        token: pollToken,
+        endpoint: `${baseUrl}/index.php/login/v2/poll`
+      },
+      login: `${baseUrl}/index.php/login/v2/flow/${flowToken}`
+    }));
+    return true;
+  }
+
+  // Nextcloud Login Flow Web UI:
+  // GET /index.php/login/v2/flow/:flowToken or /login/v2/flow/:flowToken
+  const flowMatch = pathname.match(/^\/(index\.php\/)?login\/v2\/flow\/([a-f0-9]+)$/);
+  if (flowMatch && (method === 'GET' || method === 'POST')) {
+    const flowToken = flowMatch[2];
+    const flowData = nextcloudFlows.get(flowToken);
+    if (!flowData) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Login flow expired or invalid');
+      return true;
+    }
+
+    // If POST or auto-approve:
+    const adminUser = getUserByUsername(db, process.env.ANTENNAPODDER_USER || 'admin');
+    if (method === 'POST' || query.get('confirm') === '1') {
+      flowData.approvedUser = adminUser;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+      res.end(`<!DOCTYPE html>
+        <html>
+        <head><title>Authorization Successful</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+        <body style="font-family: sans-serif; background: #1e1e2e; color: #cdd6f4; text-align: center; padding: 3rem 1rem;">
+          <div style="max-width: 420px; margin: 0 auto; background: #181825; padding: 2rem; border-radius: 12px; border: 1px solid #313244;">
+            <h2 style="color: #a6e3a1; margin-bottom: 0.5rem;">Connection Authorized</h2>
+            <p style="color: #bac2de; font-size: 0.95rem; margin-bottom: 1.5rem;">AntennaPod has been granted access. You can now switch back to the AntennaPod app on your phone.</p>
+          </div>
+        </body></html>`);
+      return true;
+    }
+
+    // Render approval page
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+    res.end(`<!DOCTYPE html>
+      <html>
+      <head><title>Connect AntennaPod</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+      <body style="font-family: sans-serif; background: #1e1e2e; color: #cdd6f4; text-align: center; padding: 3rem 1rem;">
+        <div style="max-width: 420px; margin: 0 auto; background: #181825; padding: 2rem; border-radius: 12px; border: 1px solid #313244;">
+          <h2 style="margin-bottom: 0.5rem;">Connect to AntennaPodder</h2>
+          <p style="color: #bac2de; font-size: 0.9rem; margin-bottom: 1.5rem;">Click below to authorize AntennaPod to sync with your account (<strong>${adminUser.username}</strong>).</p>
+          <form method="POST">
+            <button type="submit" style="background: #cba6f7; color: #11111b; border: 0; padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 700; border-radius: 8px; cursor: pointer; width: 100%;">Grant Access to AntennaPod</button>
+          </form>
+        </div>
+      </body></html>`);
+    return true;
+  }
+
+  // Nextcloud Poll endpoint:
+  // POST /index.php/login/v2/poll or /login/v2/poll
+  if ((pathname === '/index.php/login/v2/poll' || pathname === '/login/v2/poll') && method === 'POST') {
+    const token = (body?.token || query.get('token') || '').trim();
+    const flowData = nextcloudFlows.get(token);
+
+    if (!flowData || !flowData.approvedUser) {
+      // 404 signals client to keep polling according to Nextcloud spec
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'waiting' }));
+      return true;
+    }
+
+    const host = req.headers.host || 'localhost:3000';
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const baseUrl = `${proto}://${host}`;
+
+    // Create session token used as appPassword
+    const { token: appPassword } = createSession(db, flowData.approvedUser.id, 365 * 86400);
+
+    // Clean up flow
+    nextcloudFlows.delete(flowData.pollToken);
+    nextcloudFlows.delete(flowData.flowToken);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      server: baseUrl,
+      loginName: flowData.approvedUser.username,
+      appPassword
+    }));
+    return true;
+  }
+
+  // ----------------------------------------------------
   // Authentication: POST /api/2/auth/:username/login.json
   // ----------------------------------------------------
   const authLoginMatch = pathname.match(/^\/api\/2\/auth\/([^/]+)\/login\.json$/);
   if (authLoginMatch && method === 'POST') {
-    const targetUser = decodeURIComponent(authLoginMatch[1]);
-    const user = getUserByUsername(db, targetUser);
+    const targetUser = decodeURIComponent(authLoginMatch[1]).trim();
+    let user = getUserByUsername(db, targetUser);
 
     let authenticated = false;
     // Check Basic Auth first
     const basicUser = authenticateGpodderRequest(db, req);
-    if (basicUser && basicUser.username.toLowerCase() === targetUser.toLowerCase()) {
+    if (basicUser) {
       authenticated = true;
+      user = user || getUserByUsername(db, basicUser.username);
     } else if (body && body.password && user) {
       if (verifyPassword(body.password, user.password_hash, user.salt)) {
         authenticated = true;
@@ -101,11 +272,15 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
     }
 
     const { token, expiresAt } = createSession(db, user.id);
+    const expiresDate = new Date(expiresAt * 1000).toUTCString();
+
+    // Crucial for Android java.net.HttpCookie: Do NOT use SameSite=Lax here
+    // Android's HttpCookie.parse throws an IllegalArgumentException on SameSite and discards the cookie!
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Set-Cookie': `sessionid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${expiresAt - Math.floor(Date.now() / 1000)}`
+      'Set-Cookie': `sessionid=${token}; Path=/; Expires=${expiresDate}; HttpOnly`
     });
-    res.end(JSON.stringify({ status: 'ok', sessionid: token }));
+    res.end(JSON.stringify({ status: 'ok', sessionid: token, token }));
     return true;
   }
 
@@ -123,7 +298,10 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   if (devicesMatch) {
     const authUser = authenticateGpodderRequest(db, req);
     if (!authUser) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AntennaPodder"' });
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'WWW-Authenticate': 'Basic realm="AntennaPodder"'
+      });
       res.end('Unauthorized');
       return true;
     }
@@ -141,12 +319,15 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   if (deviceDetailMatch && method === 'POST') {
     const authUser = authenticateGpodderRequest(db, req);
     if (!authUser) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AntennaPodder"' });
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'WWW-Authenticate': 'Basic realm="AntennaPodder"'
+      });
       res.end('Unauthorized');
       return true;
     }
 
-    const deviceId = decodeURIComponent(deviceDetailMatch[2]);
+    const deviceId = decodeURIComponent(deviceDetailMatch[2]).trim();
     const caption = body ? body.caption : null;
     const type = body ? body.type : 'phone';
     upsertDevice(db, authUser.id, deviceId, caption, type);
@@ -163,12 +344,15 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   if (subDeltaMatch) {
     const authUser = authenticateGpodderRequest(db, req);
     if (!authUser) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AntennaPodder"' });
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'WWW-Authenticate': 'Basic realm="AntennaPodder"'
+      });
       res.end('Unauthorized');
       return true;
     }
 
-    const deviceId = decodeURIComponent(subDeltaMatch[2]);
+    const deviceId = decodeURIComponent(subDeltaMatch[2]).trim();
     upsertDevice(db, authUser.id, deviceId);
 
     if (method === 'GET') {
@@ -211,12 +395,15 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   if (subSimpleMatch) {
     const authUser = authenticateGpodderRequest(db, req);
     if (!authUser) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AntennaPodder"' });
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'WWW-Authenticate': 'Basic realm="AntennaPodder"'
+      });
       res.end('Unauthorized');
       return true;
     }
 
-    const deviceId = decodeURIComponent(subSimpleMatch[2]);
+    const deviceId = decodeURIComponent(subSimpleMatch[2]).trim();
     upsertDevice(db, authUser.id, deviceId);
 
     if (method === 'GET') {
@@ -252,7 +439,10 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   if (epActionsMatch) {
     const authUser = authenticateGpodderRequest(db, req);
     if (!authUser) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AntennaPodder"' });
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'WWW-Authenticate': 'Basic realm="AntennaPodder"'
+      });
       res.end('Unauthorized');
       return true;
     }
@@ -284,7 +474,10 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
   if (isNextcloudRoute) {
     const authUser = authenticateGpodderRequest(db, req);
     if (!authUser) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AntennaPodder"' });
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'WWW-Authenticate': 'Basic realm="AntennaPodder"'
+      });
       res.end('Unauthorized');
       return true;
     }
