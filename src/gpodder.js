@@ -228,18 +228,14 @@ export async function handleGpodderRoutes(db, req, res, pathname, query, body) {
 
     if (method === 'PUT') {
       const desiredUrls = Array.isArray(body) ? body : [];
-      const currentUrls = new Set(getUserSubscriptionUrls(db, authUser.id));
 
+      // Safe additive merge: always add incoming subscriptions from the device.
+      // We do not remove missing subscriptions here so that an uninitialized device or
+      // device with only a subset of feeds cannot wipe existing subscriptions.
       for (const url of desiredUrls) {
         if (typeof url === 'string' && url.trim()) {
           addSubscription(db, authUser.id, url.trim());
           syncFeedInBackground(db, url.trim());
-        }
-      }
-
-      for (const cur of currentUrls) {
-        if (!desiredUrls.includes(cur)) {
-          removeSubscription(db, authUser.id, cur);
         }
       }
 

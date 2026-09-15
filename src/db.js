@@ -347,8 +347,15 @@ export function getSubscriptionDeltas(db, userId, sinceTimestamp) {
   const add = [];
   const remove = [];
   for (const [url, action] of finalState.entries()) {
-    if (action === 'add') add.push(url);
-    if (action === 'remove') remove.push(url);
+    if (action === 'add') {
+      add.push(url);
+    } else if (action === 'remove') {
+      // Safety guarantee: Never send a podcast in remove unless it is currently marked inactive
+      const current = db.prepare('SELECT is_active FROM subscriptions WHERE user_id = ? AND podcast_url = ?').get(userId, url);
+      if (!current || current.is_active === 0) {
+        remove.push(url);
+      }
+    }
   }
 
   return { add, remove, timestamp: now };
