@@ -23,6 +23,8 @@
     isMuted: false,
     filter: 'all',
     searchQuery: '',
+    podcastSort: localStorage.getItem('antennapodder_podcast_sort') || 'recent',
+    podcastFilter: 'all',
     syncInterval: null
   };
 
@@ -44,6 +46,9 @@
     btnLogout: document.getElementById('btn-logout'),
 
     // Library
+    podcastSortSelect: document.getElementById('podcast-sort-select'),
+    filterPodAll: document.getElementById('filter-pod-all'),
+    filterPodFavs: document.getElementById('filter-pod-favs'),
     continueSection: document.getElementById('continue-listening-section'),
     continueGrid: document.getElementById('continue-listening-grid'),
     libraryGrid: document.getElementById('library-grid'),
@@ -57,6 +62,9 @@
     detailTitle: document.getElementById('detail-title'),
     detailAuthor: document.getElementById('detail-author'),
     detailDesc: document.getElementById('detail-desc'),
+    btnPodcastFavorite: document.getElementById('btn-podcast-favorite'),
+    iconPodcastFav: document.getElementById('icon-podcast-fav'),
+    textPodcastFav: document.getElementById('text-podcast-fav'),
     btnPodcastRefresh: document.getElementById('btn-podcast-refresh'),
     btnPodcastUnsubscribe: document.getElementById('btn-podcast-unsubscribe'),
     episodesList: document.getElementById('episodes-list'),
@@ -215,8 +223,21 @@
     }).catch(() => {});
   }
 
-  // View Navigation
-  function switchView(viewName) {
+  // View Navigation with Hash Routing
+  function switchView(viewName, updateHash = true) {
+    if (updateHash) {
+      let targetHash = '#/library';
+      if (viewName === 'settings') targetHash = '#/settings';
+      else if (viewName === 'podcast' && state.currentPodcast) targetHash = `#/podcast/${state.currentPodcast.id}`;
+
+      if (window.location.hash === targetHash) {
+        handleHashRoute();
+      } else {
+        window.location.hash = targetHash;
+      }
+      return;
+    }
+
     el.viewLibrary.classList.remove('active');
     el.viewPodcast.classList.remove('active');
     el.viewSettings.classList.remove('active');
@@ -232,6 +253,23 @@
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  function handleHashRoute() {
+    const hash = window.location.hash || '#/library';
+    const podMatch = hash.match(/^#\/podcast\/(\d+)$/);
+    if (podMatch) {
+      const podcastId = parseInt(podMatch[1], 10);
+      openPodcastDetail(podcastId, false);
+      return;
+    }
+    if (hash === '#/settings') {
+      switchView('settings', false);
+      return;
+    }
+    switchView('library', false);
+  }
+
+  window.addEventListener('hashchange', handleHashRoute);
 
   // API Calls
   async function checkAuth() {
@@ -249,7 +287,7 @@
         }
         updateSkipBadges();
         el.modalLogin.classList.remove('active');
-        loadLibrary();
+        handleHashRoute();
       } else {
         el.modalLogin.classList.add('active');
       }
@@ -351,8 +389,25 @@
   }
 
   function renderLibrary() {
+    let list = [...state.subscriptions];
+
+    // Filter favorites
+    if (state.podcastFilter === 'favs') {
+      list = list.filter(p => p.is_favorite);
+    }
+
+    // Sort list
+    if (state.podcastSort === 'alpha') {
+      list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    } else if (state.podcastSort === 'episodes') {
+      list.sort((a, b) => (b.total_episodes || 0) - (a.total_episodes || 0));
+    } else {
+      // Default: most recently updated
+      list.sort((a, b) => (b.latest_pub_date || b.last_fetched_at || 0) - (a.latest_pub_date || a.last_fetched_at || 0));
+    }
+
     el.libraryGrid.innerHTML = '';
-    if (state.subscriptions.length === 0) {
+    if (list.length === 0) {
       el.libraryEmpty.style.display = 'block';
       el.libraryGrid.style.display = 'none';
       return;
@@ -361,10 +416,15 @@
     el.libraryEmpty.style.display = 'none';
     el.libraryGrid.style.display = 'grid';
 
-    state.subscriptions.forEach(pod => {
+    list.forEach(pod => {
       const card = document.createElement('div');
       card.className = 'podcast-card';
       card.innerHTML = `
+        <button class="podcast-card-fav ${pod.is_favorite ? 'active' : ''}" title="${pod.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="${pod.is_favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </button>
         <img class="podcast-card-img" src="${pod.image_url || '/favicon.ico'}" alt="${pod.title}" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'><rect fill=\\'%23313244\\' width=\\'100\\' height=\\'100\\'/><text fill=\\'%23bac2de\\' x=\\'50\\' y=\\'55\\' font-size=\\'12\\' text-anchor=\\'middle\\'>Podcast</text></svg>'">
         ${pod.unplayed_episodes > 0 ? `<div class="podcast-card-badge">${pod.unplayed_episodes} new</div>` : ''}
         <div class="podcast-card-info">
@@ -372,15 +432,63 @@
           <div class="podcast-card-author">${escapeHtml(pod.author || '')}</div>
         </div>
       `;
+
+      const favBtn = card.querySelector('.podcast-card-fav');
+      favBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await togglePodcastFavoriteApi(pod.id);
+      });
+
       card.addEventListener('click', () => openPodcastDetail(pod.id));
       el.libraryGrid.appendChild(card);
     });
   }
 
+  async function togglePodcastFavoriteApi(podcastId) {
+    try {
+      const res = await fetch(`/api/podcasts/${podcastId}/favorite`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        const pod = state.subscriptions.find(p => p.id === podcastId);
+        if (pod) pod.is_favorite = data.is_favorite ? 1 : 0;
+        if (state.currentPodcast && state.currentPodcast.id === podcastId) {
+          state.currentPodcast.is_favorite = Boolean(data.is_favorite);
+          updatePodcastDetailFavoriteButton();
+        }
+        renderLibrary();
+        showToast(data.is_favorite ? 'Added podcast to favorites' : 'Removed podcast from favorites');
+      }
+    } catch (e) {
+      showToast('Failed to update favorite: ' + e.message, true);
+    }
+  }
+
+  function updatePodcastDetailFavoriteButton() {
+    if (!el.btnPodcastFavorite) return;
+    const isFav = Boolean(state.currentPodcast?.is_favorite);
+    if (isFav) {
+      el.btnPodcastFavorite.classList.add('btn-podcast-fav-active');
+      if (el.iconPodcastFav) el.iconPodcastFav.setAttribute('fill', 'currentColor');
+      if (el.textPodcastFav) el.textPodcastFav.textContent = 'Favorited';
+    } else {
+      el.btnPodcastFavorite.classList.remove('btn-podcast-fav-active');
+      if (el.iconPodcastFav) el.iconPodcastFav.setAttribute('fill', 'none');
+      if (el.textPodcastFav) el.textPodcastFav.textContent = 'Favorite';
+    }
+  }
+
   // Podcast Detail Loader
-  async function openPodcastDetail(podcastId) {
+  async function openPodcastDetail(podcastId, updateHash = true) {
+    if (updateHash) {
+      window.location.hash = `#/podcast/${podcastId}`;
+      return;
+    }
     try {
       const res = await fetch(`/api/podcasts/${podcastId}`);
+      if (res.status === 401) {
+        el.modalLogin.classList.add('active');
+        return;
+      }
       const data = await res.json();
       if (!data.podcast) return;
 
@@ -395,9 +503,10 @@
       state.filter = 'all';
       state.searchQuery = '';
       updateFilterButtons();
+      updatePodcastDetailFavoriteButton();
 
       renderEpisodesList();
-      switchView('podcast');
+      switchView('podcast', false);
     } catch (e) {
       showToast('Failed to load podcast: ' + e.message, true);
     }
@@ -424,6 +533,8 @@
       filtered = filtered.filter(e => !e.is_played && e.position > 0);
     } else if (state.filter === 'played') {
       filtered = filtered.filter(e => e.is_played);
+    } else if (state.filter === 'favorites') {
+      filtered = filtered.filter(e => e.is_favorite);
     }
 
     if (state.searchQuery) {
@@ -461,6 +572,7 @@
             <span>&bull;</span>
             <span>${formatTime(ep.duration || ep.total_duration)}</span>
             ${isVideoEp ? '<span class="episode-type-badge">Video</span>' : ''}
+            ${ep.is_favorite ? '<span style="color: var(--ctp-yellow); font-weight: 600;">★ Favorite</span> &bull;' : ''}
             ${ep.is_played ? '<span style="color: var(--ctp-green); font-weight: 600;">✓ Played</span>' : ''}
           </div>
           <div class="episode-title">${escapeHtml(ep.title)}</div>
@@ -472,6 +584,11 @@
           ` : ''}
         </div>
         <div class="episode-actions">
+          <button class="btn-icon btn-toggle-favorite ${ep.is_favorite ? 'active' : ''}" title="${ep.is_favorite ? 'Remove Favorite' : 'Favorite Episode'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="${ep.is_favorite ? 'var(--ctp-yellow)' : 'none'}" stroke="${ep.is_favorite ? 'var(--ctp-yellow)' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </button>
           <button class="btn-icon btn-toggle-played" title="${ep.is_played ? 'Mark Unplayed' : 'Mark Played'}">
             ${ep.is_played 
               ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8"></path></svg>'
@@ -492,6 +609,13 @@
         }
       });
 
+      // Toggle favorite click
+      const favBtn = item.querySelector('.btn-toggle-favorite');
+      favBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await toggleEpisodeFavoriteApi(ep.id);
+      });
+
       // Toggle played click
       const toggleBtn = item.querySelector('.btn-toggle-played');
       toggleBtn.addEventListener('click', async (e) => {
@@ -501,6 +625,24 @@
 
       el.episodesList.appendChild(item);
     });
+  }
+
+  // Toggle favorite episode API
+  async function toggleEpisodeFavoriteApi(episodeId) {
+    try {
+      const res = await fetch(`/api/episodes/${episodeId}/toggle-favorite`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && state.currentPodcast) {
+        const ep = state.currentEpisodes.find(e => e.id === episodeId);
+        if (ep) {
+          ep.is_favorite = data.state.is_favorite;
+        }
+        renderEpisodesList();
+        showToast(data.state.is_favorite ? 'Episode marked favorite (synced)' : 'Episode removed from favorites (synced)');
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message, true);
+    }
   }
 
   // Toggle played status API
@@ -1063,6 +1205,42 @@
       renderEpisodesList();
     });
   });
+
+  // Library Sorting & Filtering
+  if (el.podcastSortSelect) {
+    el.podcastSortSelect.value = state.podcastSort;
+    el.podcastSortSelect.addEventListener('change', (e) => {
+      state.podcastSort = e.target.value;
+      localStorage.setItem('antennapodder_podcast_sort', state.podcastSort);
+      renderLibrary();
+    });
+  }
+
+  if (el.filterPodAll) {
+    el.filterPodAll.addEventListener('click', () => {
+      state.podcastFilter = 'all';
+      el.filterPodAll.classList.add('active');
+      el.filterPodFavs.classList.remove('active');
+      renderLibrary();
+    });
+  }
+
+  if (el.filterPodFavs) {
+    el.filterPodFavs.addEventListener('click', () => {
+      state.podcastFilter = 'favs';
+      el.filterPodFavs.classList.add('active');
+      el.filterPodAll.classList.remove('active');
+      renderLibrary();
+    });
+  }
+
+  // Podcast Detail Favorite Button
+  if (el.btnPodcastFavorite) {
+    el.btnPodcastFavorite.addEventListener('click', async () => {
+      if (!state.currentPodcast) return;
+      await togglePodcastFavoriteApi(state.currentPodcast.id);
+    });
+  }
 
   // Controls Event Binding
   el.btnPlayPause.addEventListener('click', togglePlayPause);

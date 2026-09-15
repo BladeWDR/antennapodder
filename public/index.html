@@ -59,9 +59,20 @@
       <div class="view-header">
         <div>
           <h1 class="view-title">Podcast Subscriptions</h1>
-          <p style="color: var(--theme-muted); font-size: 0.85rem;">Synchronized directly with your AntennaPod app</p>
         </div>
-        <div style="display: flex; gap: 0.5rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 0.35rem;">
+            <label for="podcast-sort-select" style="font-size: 0.85rem; color: var(--theme-muted);">Sort:</label>
+            <select id="podcast-sort-select" class="form-input" style="padding: 0.35rem 0.6rem; font-size: 0.85rem; width: auto; background-color: var(--ctp-surface0); color: var(--theme-text); border: 1px solid var(--theme-border); border-radius: 8px;">
+              <option value="recent">Most Recently Updated</option>
+              <option value="alpha">Alphabetical (A-Z)</option>
+              <option value="episodes">Number of Episodes</option>
+            </select>
+          </div>
+          <div class="filter-btn-group" style="display: flex; gap: 0.25rem;">
+            <button class="filter-btn active" id="filter-pod-all" data-pod-filter="all" style="padding: 0.35rem 0.75rem; font-size: 0.85rem;">All</button>
+            <button class="filter-btn" id="filter-pod-favs" data-pod-filter="favs" style="padding: 0.35rem 0.75rem; font-size: 0.85rem;">★ Favorites</button>
+          </div>
           <button class="btn btn-secondary" id="btn-refresh-all" title="Refresh all feeds">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
             <span>Refresh All</span>
@@ -110,6 +121,10 @@
           <div id="detail-author" class="podcast-detail-author">Author Name</div>
           <div id="detail-desc" class="podcast-detail-desc">Description text...</div>
           <div class="podcast-detail-actions">
+            <button class="btn btn-secondary" id="btn-podcast-favorite" title="Toggle Favorite">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="icon-podcast-fav"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              <span id="text-podcast-fav">Favorite</span>
+            </button>
             <button class="btn btn-secondary" id="btn-podcast-refresh">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
               <span>Refresh Feed</span>
@@ -129,6 +144,7 @@
           <button class="filter-btn" data-filter="unplayed">Unplayed</button>
           <button class="filter-btn" data-filter="progress">In Progress</button>
           <button class="filter-btn" data-filter="played">Played</button>
+          <button class="filter-btn" data-filter="favorites">★ Favorites</button>
         </div>
         <div>
           <input type="text" id="episode-search-input" class="form-input" placeholder="Search episodes..." style="padding: 0.35rem 0.75rem; width: 220px;">

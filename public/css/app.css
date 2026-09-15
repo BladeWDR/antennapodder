@@ -438,6 +438,50 @@ body {
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
+.podcast-card-fav {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: rgba(17, 17, 27, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--ctp-subtext0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 2;
+}
+
+.podcast-card-fav:hover {
+  background-color: rgba(17, 17, 27, 0.9);
+  color: var(--ctp-yellow);
+  transform: scale(1.1);
+}
+
+.podcast-card-fav.active {
+  color: var(--ctp-yellow);
+  background-color: rgba(17, 17, 27, 0.85);
+}
+
+.btn-podcast-fav-active {
+  color: var(--ctp-yellow) !important;
+  border-color: var(--ctp-yellow) !important;
+}
+
+.btn-toggle-favorite {
+  color: var(--theme-muted);
+  transition: all 0.15s ease;
+}
+
+.btn-toggle-favorite:hover,
+.btn-toggle-favorite.active {
+  color: var(--ctp-yellow);
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;

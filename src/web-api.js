@@ -14,8 +14,11 @@ import {
   getPodcastByUrl,
   getEpisodeById,
   getInProgressEpisodes,
+  getFavoriteEpisodes,
   updateEpisodePlayback,
   toggleEpisodePlayed,
+  togglePodcastFavorite,
+  toggleEpisodeFavorite,
   getConfig,
   setConfig,
   getAllConfig,
@@ -217,6 +220,18 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
     return true;
   }
 
+  const podcastFavMatch = pathname.match(/^\/api\/podcasts\/(\d+)\/favorite$/);
+  if (podcastFavMatch && method === 'POST') {
+    const podcastId = parseInt(podcastFavMatch[1], 10);
+    const result = togglePodcastFavorite(db, authUser.id, podcastId);
+    if (!result) {
+      sendError(404, 'Podcast not found or not subscribed');
+      return true;
+    }
+    sendJson(200, { success: true, ...result });
+    return true;
+  }
+
   // ----------------------------------------------------
   // Episode Operations: /api/episodes/:id/*
   // ----------------------------------------------------
@@ -274,10 +289,30 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
     return true;
   }
 
+  const epFavMatch = pathname.match(/^\/api\/episodes\/(\d+)\/(toggle-favorite|favorite)$/);
+  if (epFavMatch && method === 'POST') {
+    const episodeId = parseInt(epFavMatch[1], 10);
+    const result = toggleEpisodeFavorite(db, authUser.id, episodeId);
+    if (!result) {
+      sendError(404, 'Episode not found');
+      return true;
+    }
+    sendJson(200, { success: true, state: result });
+    return true;
+  }
+
   // In-Progress Episodes: GET /api/episodes/in-progress
   if (pathname === '/api/episodes/in-progress' && method === 'GET') {
     const limit = parseInt(query.get('limit'), 10) || 12;
     const episodes = getInProgressEpisodes(db, authUser.id, limit);
+    sendJson(200, { episodes });
+    return true;
+  }
+
+  // Favorite Episodes: GET /api/episodes/favorites
+  if (pathname === '/api/episodes/favorites' && method === 'GET') {
+    const limit = parseInt(query.get('limit'), 10) || 50;
+    const episodes = getFavoriteEpisodes(db, authUser.id, limit);
     sendJson(200, { episodes });
     return true;
   }
