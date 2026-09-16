@@ -20,28 +20,42 @@ I am vehemently opposed to exposing this directly directly to the internet. Put 
   - Changes in AntennaPod (subscriptions, playback progress, played status) sync to the web app.
   - Changes in the web app (adding feeds, removing feeds, listening, scrubbing, marking played) immediately sync back to AntennaPod.
   - Dual protocol support: compatible with both AntennaPod's **Nextcloud** provider and standard **gpodder.net** provider.
+  - Non-destructive sync safeguards: connecting a fresh AntennaPod install or signing in on a new device never wipes existing podcasts or playback states.
+- **Continue Listening:**
+  - Dedicated "Continue Listening" shelf on the main library view displaying in-progress episodes with visual completion bars and remaining duration for quick one-click resumption.
 - **Audio and Video Playback:**
-  - Full HTML5 player for both audio podcasts and video podcasts (MP4, WebM, M4V).
-  - High-resolution artwork for audio episodes and inline video player for video episodes.
-  - MediaSession API integration for hardware media keys and lock screen controls.
-- **Customizable Player Controls:**
+  - Full HTML5 player supporting both audio and video podcasts (MP4, WebM, M4V).
+  - High-resolution artwork for audio episodes and inline responsive player for video episodes.
+  - Native fullscreen video mode with dedicated toggle buttons, double-click support, and keyboard shortcuts.
+  - MediaSession API integration for hardware media keys, lock screen playback controls, and artwork display.
+- **Customizable Player Controls & Keyboard Navigation:**
   - Previous episode, skip back X seconds, play / pause, skip forward X seconds, next episode.
-  - User-configurable skip forward and backward seconds (via the Settings panel).
+  - User-configurable skip forward and backward seconds (customizable in the Settings panel).
   - Variable playback speed controls (0.75x, 1.0x, 1.25x, 1.5x, 1.75x, 2.0x).
   - Volume slider with one-click mute toggle.
-  - Persistent bottom player bar with expandable full Now Playing screen.
-- **Feed and Library Management:**
+  - Persistent bottom player bar with expandable full Now Playing screen and scrollable show notes viewer.
+  - Global keyboard shortcuts: `Space` (play/pause), `Left` / `Right` arrows (skip backward/forward), `M` (mute toggle), `F` (video fullscreen), `Esc` (close modals).
+- **Feed & Library Organization:**
+  - Sort subscriptions by **Most Recently Updated**, **Alphabetical (A-Z)**, or **Number of Episodes**.
+  - Visible episode counts and last update dates directly on podcast cards.
+  - Filter podcasts to view All or Favorites.
   - Easily subscribe by RSS / Atom feed URL.
   - Integrated podcast directory search (search podcasts by name and subscribe with one click).
+  - Single-feed manual refresh, batch library refresh, and automatic periodic background feed updates.
   - Unsubscribing immediately syncs feed removal to AntennaPod.
-  - Periodic background feed refresh keeps episodes up to date.
-- **Themes:**
+- **Episode Filtering & In-Feed Search:**
+  - Filter episodes within any podcast: **All**, **Unplayed**, **In Progress**, **Played**, or **Favorites**.
+  - Instant text search across all episodes in a podcast feed.
+  - Star / favorite individual episodes and podcasts with two-way sync to AntennaPod.
+- **Themes & UI Polish:**
   - Designed with the **Catppuccin Mocha** dark palette by default.
   - One-click toggle to **Catppuccin Latte** light palette.
+  - Responsive layout for desktop and mobile browsers.
 - **Minimal Dependencies & Lightweight Footprint:**
   - Built with Node.js and standard built-in modules (`node:http`, `node:sqlite`, `node:crypto`).
   - Only a single production dependency: [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser).
-  - Zero external database services needed (SQLite with WAL mode).
+  - Zero external database services needed (SQLite with WAL mode and fast indexes).
+  - Docker container runs unprivileged with configurable `PUID` / `PGID` via `su-exec` and built-in health checks.
 
 ---
 
@@ -131,9 +145,11 @@ AntennaPodder supports two setup methods in AntennaPod:
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `PORT` | `3000` | Port the HTTP server listens on |
-| `DATA_DIR` | `./data` | Directory where SQLite database (`antennapodder.db`) is stored |
+| `DATA_DIR` | `/data` | Directory where SQLite database (`antennapodder.db`) is stored |
 | `ANTENNAPODDER_USER` | `admin` | Initial admin username created on first launch |
 | `ANTENNAPODDER_PASS` | `admin` | Initial admin password created on first launch |
+| `PUID` | `1000` | User ID for file ownership inside Docker container |
+| `PGID` | `1000` | Group ID for file ownership inside Docker container |
 
 Password and seek skip duration settings can also be modified in the Web UI Settings panel.
 
