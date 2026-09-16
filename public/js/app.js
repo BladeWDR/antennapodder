@@ -332,11 +332,14 @@
         }
         updateSkipBadges();
         el.modalLogin.classList.remove('active');
+        return true;
       } else {
         el.modalLogin.classList.add('active');
+        return false;
       }
     } catch (e) {
       el.modalLogin.classList.add('active');
+      return false;
     }
   }
 
@@ -1911,7 +1914,7 @@
         state.user = data.user;
         el.modalLogin.classList.remove('active');
         el.loginError.style.display = 'none';
-        loadLibrary();
+        handleHashRoute();
       } else {
         el.loginError.textContent = data.error || 'Login failed';
         el.loginError.style.display = 'block';
@@ -1981,7 +1984,13 @@
   // Initialization
   const savedTheme = localStorage.getItem('antennapodder_theme') || 'mocha';
   applyTheme(savedTheme);
-  handleHashRoute();
-  checkAuth();
+
+  async function initApp() {
+    const authenticated = await checkAuth();
+    if (authenticated) {
+      handleHashRoute();
+    }
+  }
+  initApp();
 
 })();

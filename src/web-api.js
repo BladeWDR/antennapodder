@@ -33,18 +33,21 @@ export function getAuthenticatedUser(db, req) {
   const cookieHeader = req.headers['cookie'];
   if (!cookieHeader) return null;
 
-  const cookies = Object.fromEntries(
-    cookieHeader.split(';').map(c => {
-      const [k, ...v] = c.trim().split('=');
-      return [k, v.join('=')];
-    })
-  );
+  const pairs = cookieHeader.split(';').map(c => {
+    const [k, ...v] = c.trim().split('=');
+    return [k.trim(), v.join('=').trim().replace(/^"|"$/g, '')];
+  });
 
-  if (!cookies.sessionid) return null;
-  const session = getSession(db, cookies.sessionid);
-  if (!session) return null;
+  const sessionTokens = pairs.filter(([k]) => k === 'sessionid').map(([, v]) => v);
+  for (const token of sessionTokens) {
+    if (!token) continue;
+    const session = getSession(db, token);
+    if (session) {
+      return { id: session.user_id, username: session.username, token: session.token };
+    }
+  }
 
-  return { id: session.user_id, username: session.username, token: session.token };
+  return null;
 }
 
 export async function handleWebRoutes(db, req, res, pathname, query, body) {
@@ -84,9 +87,12 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
 
     const { token, expiresAt } = createSession(db, user.id);
     const maxAge = expiresAt - Math.floor(Date.now() / 1000);
+    const expiresDate = new Date(expiresAt * 1000).toUTCString();
+    const isSecure = req.headers['x-forwarded-proto'] === 'https' || req.socket?.encrypted;
+    const secureFlag = isSecure ? '; Secure' : '';
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Set-Cookie': `sessionid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`
+      'Set-Cookie': `sessionid=${token}; Path=/; Expires=${expiresDate}; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secureFlag}`
     });
     res.end(JSON.stringify({
       user: { id: user.id, username: user.username }
@@ -99,9 +105,11 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
     if (authUser) {
       deleteSession(db, authUser.token);
     }
+    const isSecure = req.headers['x-forwarded-proto'] === 'https' || req.socket?.encrypted;
+    const secureFlag = isSecure ? '; Secure' : '';
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Set-Cookie': `sessionid=; Path=/; HttpOnly; Max-Age=0`
+      'Set-Cookie': `sessionid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; SameSite=Lax${secureFlag}`
     });
     res.end(JSON.stringify({ status: 'ok' }));
     return true;
