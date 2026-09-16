@@ -191,4 +191,43 @@ test('End-to-End 2-way sync between Web UI and AntennaPod', async (t) => {
   });
   const apRemovalData = await apSubRemovalRes.json();
   assert.ok(apRemovalData.remove.includes(testFeedUrl), 'AntennaPod received feed removal delta');
+
+  // Step 10: Adding a second device (verifying AntennaPod device registration & subscriptions count requirement)
+  // AntennaPod calls GET /api/2/devices/:username.json when entering credentials to add a new device
+  const devicesRes = await fetch(`${baseUrl}/api/2/devices/admin.json`, {
+    headers: { 'Authorization': authHeader }
+  });
+  assert.equal(devicesRes.status, 200);
+  const devicesList = await devicesRes.json();
+  assert.ok(Array.isArray(devicesList));
+  assert.ok(devicesList.length >= 1, 'Should list previously connected phone device');
+
+  for (const dev of devicesList) {
+    assert.equal(typeof dev.id, 'string');
+    assert.equal(typeof dev.caption, 'string');
+    assert.equal(typeof dev.type, 'string');
+    assert.equal(typeof dev.subscriptions, 'number', 'Device must include subscriptions count for AntennaPod');
+    assert.ok(!Number.isNaN(dev.subscriptions));
+  }
+
+  // Register a second device
+  const regSecondDevRes = await fetch(`${baseUrl}/api/2/devices/admin/antennapod-tablet.json`, {
+    method: 'POST',
+    headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caption: 'AntennaPod Tablet', type: 'mobile' })
+  });
+  assert.equal(regSecondDevRes.status, 200);
+
+  // Re-fetch devices list and verify second device appears with required fields
+  const devicesRes2 = await fetch(`${baseUrl}/api/2/devices/admin.json`, {
+    headers: { 'Authorization': authHeader }
+  });
+  assert.equal(devicesRes2.status, 200);
+  const devicesList2 = await devicesRes2.json();
+  const tabletDev = devicesList2.find(d => d.id === 'antennapod-tablet');
+  assert.ok(tabletDev, 'Second device must be present in devices list');
+  assert.equal(tabletDev.caption, 'AntennaPod Tablet');
+  assert.equal(tabletDev.type, 'mobile');
+  assert.equal(typeof tabletDev.subscriptions, 'number', 'Second device must have subscriptions number');
 });
+

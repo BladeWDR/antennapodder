@@ -311,7 +311,16 @@ export function upsertDevice(db, userId, deviceId, caption = null, type = 'phone
 }
 
 export function getUserDevices(db, userId) {
-  return db.prepare('SELECT id, caption, type, last_sync_at FROM devices WHERE user_id = ? ORDER BY last_sync_at DESC').all(userId);
+  return db.prepare(`
+    SELECT d.id,
+           COALESCE(d.caption, d.id) AS caption,
+           COALESCE(d.type, 'phone') AS type,
+           d.last_sync_at,
+           COALESCE((SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = d.user_id AND s.is_active = 1), 0) AS subscriptions
+    FROM devices d
+    WHERE d.user_id = ?
+    ORDER BY d.last_sync_at DESC
+  `).all(userId);
 }
 
 // Subscriptions & Library
