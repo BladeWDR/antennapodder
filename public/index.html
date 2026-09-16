@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AntennaPodder</title>
-  <link rel="stylesheet" href="/css/app.css?v=4">
+  <link rel="stylesheet" href="/css/app.css?v=5">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23cba6f7'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z'/></svg>">
 </head>
 <body>
@@ -386,6 +386,71 @@
           <button id="btn-video-overlay-fullscreen" class="video-fullscreen-btn" title="Fullscreen Video">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
           </button>
+
+          <!-- Fullscreen Video Top Overlay (Title & Podcast) -->
+          <div id="video-fs-top-bar" class="video-fs-top-bar">
+            <div class="video-fs-title-container">
+              <div id="video-fs-title" class="video-fs-title">Episode Title</div>
+              <div id="video-fs-podcast" class="video-fs-podcast">Podcast Name</div>
+            </div>
+          </div>
+
+          <!-- Fullscreen Video Player Bar -->
+          <div id="video-fs-player-bar" class="video-fs-player-bar">
+            <!-- Scrubber line -->
+            <div class="video-fs-scrubber-container">
+              <span id="video-fs-time-current" class="video-fs-time">0:00</span>
+              <input type="range" id="video-fs-scrubber" class="scrubber-slider video-fs-scrubber" min="0" max="100" value="0" step="0.5" aria-label="Playback progress">
+              <span id="video-fs-time-total" class="video-fs-time">0:00</span>
+            </div>
+
+            <!-- Controls row -->
+            <div class="video-fs-controls-row">
+              <div class="video-fs-controls-left">
+                <button class="btn-ctrl" id="btn-video-fs-prev" title="Previous Episode">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+                </button>
+                <button class="btn-ctrl" id="btn-video-fs-skip-back" title="Skip Back" style="position: relative; width: 38px; height: 38px;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                  <span class="skip-badge" id="video-fs-badge-skip-back">10</span>
+                </button>
+                <button class="btn-ctrl btn-ctrl-play" id="btn-video-fs-play-pause" title="Play/Pause" style="width: 44px; height: 44px;">
+                  <svg id="video-fs-icon-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  <svg id="video-fs-icon-pause" style="display: none;" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                </button>
+                <button class="btn-ctrl" id="btn-video-fs-skip-forward" title="Skip Forward" style="position: relative; width: 38px; height: 38px;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                  <span class="skip-badge" id="video-fs-badge-skip-forward">30</span>
+                </button>
+                <button class="btn-ctrl" id="btn-video-fs-next" title="Next Episode">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                </button>
+              </div>
+
+              <div class="video-fs-controls-right">
+                <select id="video-fs-speed-select" class="speed-selector" title="Playback Speed" style="padding: 0.25rem 0.4rem; font-size: 0.8rem;">
+                  <option value="0.75">0.75x</option>
+                  <option value="1.0" selected>1.0x</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="1.75">1.75x</option>
+                  <option value="2.0">2.0x</option>
+                </select>
+
+                <div class="volume-container">
+                  <button class="btn-ctrl" id="btn-video-fs-volume-toggle" title="Mute/Unmute">
+                    <svg id="video-fs-icon-vol-high" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <svg id="video-fs-icon-vol-mute" style="display: none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                  </button>
+                  <input type="range" id="video-fs-volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+                </div>
+
+                <button class="btn-ctrl" id="btn-video-fs-exit" title="Exit Fullscreen">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Audio Artwork Display (if audio podcast) -->
@@ -503,6 +568,6 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="/js/app.js?v=10"></script>
+  <script src="/js/app.js?v=11"></script>
 </body>
 </html>
