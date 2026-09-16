@@ -332,6 +332,22 @@
     }
   }
 
+  async function loadInProgressEpisodes() {
+    if (!el.continueSection || !el.continueGrid) return;
+    try {
+      const res = await fetch('/api/episodes/in-progress');
+      if (res.ok) {
+        const data = await res.json();
+        renderContinueListening(data.episodes || []);
+      } else {
+        el.continueSection.style.display = 'none';
+        el.continueGrid.innerHTML = '';
+      }
+    } catch (e) {
+      // Ignore network errors
+    }
+  }
+
   function renderContinueListening(episodes) {
     if (!el.continueSection || !el.continueGrid) return;
     if (!episodes || episodes.length === 0) {
@@ -346,6 +362,7 @@
     episodes.forEach(ep => {
       const card = document.createElement('div');
       card.className = 'continue-card';
+      card.dataset.episodeId = String(ep.id);
 
       const progressPercent = ep.total_duration > 0
         ? Math.min(100, Math.round((ep.position / ep.total_duration) * 100))
@@ -678,6 +695,7 @@
           ep.position = data.state.position;
         }
         renderEpisodesList();
+        loadInProgressEpisodes();
         showToast(data.state.is_played ? 'Marked as played (synced)' : 'Marked as unplayed (synced)');
       }
     } catch (e) {
@@ -964,17 +982,31 @@
       }
     });
 
-    media.addEventListener('ended', () => {
+    media.addEventListener('ended', async () => {
       const finishedEp = state.activeEpisode;
       if (finishedEp) {
         finishedEp.is_played = 1;
         const total = Math.floor(finishedEp.duration || media.duration || 0);
         finishedEp.position = total;
-        fetch(`/api/episodes/${finishedEp.id}/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position: total, total, is_played: 1, action: 'play' })
-        }).catch(() => {});
+
+        // Optimistically remove finished card from Continue Listening carousel immediately
+        if (el.continueGrid) {
+          const card = el.continueGrid.querySelector(`.continue-card[data-episode-id="${finishedEp.id}"]`);
+          if (card) {
+            card.remove();
+            if (el.continueGrid.children.length === 0 && el.continueSection) {
+              el.continueSection.style.display = 'none';
+            }
+          }
+        }
+
+        try {
+          await fetch(`/api/episodes/${finishedEp.id}/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position: total, total, is_played: 1, action: 'play' })
+          });
+        } catch (e) {}
       }
 
       dismissPlayer();
@@ -982,7 +1014,7 @@
       if (state.currentPodcast) {
         renderEpisodesList();
       }
-      loadInProgressEpisodes();
+      await loadInProgressEpisodes();
     });
 
     media.addEventListener('play', () => {
