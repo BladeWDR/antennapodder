@@ -606,7 +606,12 @@
   // Podcast Detail Loader
   async function openPodcastDetail(podcastId, updateHash = true) {
     if (updateHash) {
-      window.location.hash = `#/podcast/${podcastId}`;
+      const targetHash = `#/podcast/${podcastId}`;
+      if (window.location.hash === targetHash) {
+        openPodcastDetail(podcastId, false);
+      } else {
+        window.location.hash = targetHash;
+      }
       return;
     }
     try {
@@ -1829,6 +1834,16 @@
   el.playerTrackClick.addEventListener('click', () => el.modalNowPlaying.classList.add('active'));
   el.btnExpandNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.add('active'));
   el.btnCloseNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.remove('active'));
+
+  if (el.nowplayingPodcast) {
+    el.nowplayingPodcast.addEventListener('click', () => {
+      const podcastId = state.activePodcast?.id || state.activeEpisode?.podcast_id;
+      if (podcastId) {
+        el.modalNowPlaying.classList.remove('active');
+        openPodcastDetail(podcastId);
+      }
+    });
+  }
 
   if (el.btnPlayerFullscreenVideo) {
     el.btnPlayerFullscreenVideo.addEventListener('click', toggleVideoFullscreen);

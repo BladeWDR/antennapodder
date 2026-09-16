@@ -1384,6 +1384,20 @@ video:-webkit-full-screen {
   display: block;
 }
 
+.nowplaying-podcast {
+  font-size: 0.9rem;
+  color: var(--ctp-mauve);
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  display: inline-block;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.nowplaying-podcast:hover {
+  color: var(--theme-accent-hover);
+  text-decoration: underline;
+}
+
 /* Forms & Settings */
 .form-group {
   margin-bottom: 1.25rem;
