@@ -746,31 +746,55 @@
     }
   }
 
-  function toggleVideoFullscreen() {
+  let openedModalForFullscreen = false;
+
+  async function toggleVideoFullscreen() {
     const video = el.nowplayingVideo;
     if (!video) return;
 
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+        await document.exitFullscreen().catch(() => {});
       } else if (document.webkitExitFullscreen) {
         document.webkitExitFullscreen();
       }
       return;
     }
 
-    if (video.requestFullscreen) {
-      video.requestFullscreen().catch(() => {
-        if (el.nowplayingVideoWrapper && el.nowplayingVideoWrapper.requestFullscreen) {
-          el.nowplayingVideoWrapper.requestFullscreen().catch(() => {});
-        }
-      });
-    } else if (video.webkitRequestFullscreen) {
-      video.webkitRequestFullscreen();
-    } else if (video.webkitEnterFullscreen) {
-      video.webkitEnterFullscreen();
+    const wasModalOpen = el.modalNowPlaying.classList.contains('active');
+    openedModalForFullscreen = !wasModalOpen;
+
+    // Ensure Now Playing modal and video wrapper are active in DOM so the video is visible and rendered
+    el.modalNowPlaying.classList.add('active');
+    el.nowplayingVideoWrapper.classList.add('active');
+
+    try {
+      if (video.requestFullscreen) {
+        await video.requestFullscreen();
+      } else if (video.webkitRequestFullscreen) {
+        video.webkitRequestFullscreen();
+      } else if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+      } else if (el.nowplayingVideoWrapper && el.nowplayingVideoWrapper.requestFullscreen) {
+        await el.nowplayingVideoWrapper.requestFullscreen();
+      }
+    } catch (err) {
+      if (el.nowplayingVideoWrapper && el.nowplayingVideoWrapper.requestFullscreen) {
+        await el.nowplayingVideoWrapper.requestFullscreen().catch(() => {});
+      }
     }
   }
+
+  function handleFullscreenChange() {
+    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    if (!isFs && openedModalForFullscreen) {
+      openedModalForFullscreen = false;
+      el.modalNowPlaying.classList.remove('active');
+    }
+  }
+
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
   function togglePlayPause() {
     const media = getActiveMediaElement();
