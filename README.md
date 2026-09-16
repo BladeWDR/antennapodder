@@ -54,8 +54,7 @@ Create a `docker-compose.yml` file:
 ```yaml
 services:
   antennapodder:
-    image: antennapodder:latest
-    build: .
+    image: ghcr.io/bladewdr/antennapodder:latest
     container_name: antennapodder
     restart: unless-stopped
     ports:
@@ -84,7 +83,7 @@ Open your browser at `http://localhost:3000` (or `http://<your-server-ip>:3000`)
 ### Using Docker CLI
 
 ```bash
-docker build -t antennapodder .
+docker pull ghcr.io/bladewdr/antennapodder:latest
 
 docker run -d \
   --name antennapodder \
@@ -93,7 +92,7 @@ docker run -d \
   -v antennapodder_data:/data \
   -e ANTENNAPODDER_USER=admin \
   -e ANTENNAPODDER_PASS=admin \
-  antennapodder
+  ghcr.io/bladewdr/antennapodder:latest
 ```
 
 ---

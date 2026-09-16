@@ -1,5 +1,6 @@
 services:
   antennapodder:
+    image: ghcr.io/bladewdr/antennapodder:latest
     build: .
     container_name: antennapodder
     restart: unless-stopped
