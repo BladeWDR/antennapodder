@@ -2,7 +2,11 @@
 
 AntennaPodder is a lightweight, standalone companion web player and synchronization server for the [AntennaPod](https://antennapod.org/) Android application.
 
-It solves the reliability issues commonly experienced with Nextcloud RePod and gpoddersync by maintaining a unified database for subscriptions, playback progress, and episode actions, ensuring 100% reliable two-way synchronization.
+It is not associated in any way with the AntennaPod or gPodder projects.
+
+**Full Disclosure: This app was 100% coded with Gemini. Use at your own risk.**
+
+I am vehemently opposed to exposing this directly directly to the internet. Put it behind a firewall and access the sync endpoint over a VPN.
 
 ---
 
