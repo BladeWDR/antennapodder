@@ -36,6 +36,7 @@ I am vehemently opposed to exposing this directly directly to the internet. Put 
   - Persistent bottom player bar with expandable full Now Playing screen and scrollable show notes viewer.
   - Global keyboard shortcuts: `Space` (play/pause), `Left` / `Right` arrows (skip backward/forward), `M` (mute toggle), `F` (video fullscreen), `Esc` (close modals).
 - **Feed & Library Organization:**
+  - Instant text search across all subscribed podcasts (filters by title, author, and description).
   - Sort subscriptions by **Most Recently Updated**, **Alphabetical (A-Z)**, or **Number of Episodes**.
   - Visible episode counts and last update dates directly on podcast cards.
   - Filter podcasts to view All or Favorites.

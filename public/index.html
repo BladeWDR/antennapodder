@@ -61,6 +61,9 @@
           <h1 class="view-title">Podcast Subscriptions</h1>
         </div>
         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+          <div>
+            <input type="search" id="podcast-search-input" class="form-input" placeholder="Search library..." style="padding: 0.35rem 0.75rem; width: 180px; font-size: 0.85rem;">
+          </div>
           <div style="display: flex; align-items: center; gap: 0.35rem;">
             <label for="podcast-sort-select" style="font-size: 0.85rem; color: var(--theme-muted);">Sort:</label>
             <select id="podcast-sort-select" class="form-input" style="padding: 0.35rem 0.6rem; font-size: 0.85rem; width: auto; background-color: var(--ctp-surface0); color: var(--theme-text); border: 1px solid var(--theme-border); border-radius: 8px;">
@@ -99,9 +102,10 @@
 
       <div id="library-empty" class="empty-state" style="display: none;">
         <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
-        <h3>No podcast subscriptions yet</h3>
-        <p>Add a podcast feed URL or sync with AntennaPod to start listening.</p>
+        <h3 id="library-empty-title">No podcast subscriptions yet</h3>
+        <p id="library-empty-desc">Add a podcast feed URL or sync with AntennaPod to start listening.</p>
         <button class="btn btn-primary" id="btn-empty-add">Add Your First Feed</button>
+        <button class="btn btn-secondary" id="btn-empty-clear-search" style="display: none;">Clear Search</button>
       </div>
     </section>
 
@@ -462,6 +466,6 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="/js/app.js?v=6"></script>
+  <script src="/js/app.js?v=7"></script>
 </body>
 </html>

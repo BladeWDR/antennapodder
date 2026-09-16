@@ -25,6 +25,7 @@
     searchQuery: '',
     podcastSort: localStorage.getItem('antennapodder_podcast_sort') || 'recent',
     podcastFilter: 'all',
+    librarySearchQuery: '',
     syncInterval: null
   };
 
@@ -46,6 +47,7 @@
     btnLogout: document.getElementById('btn-logout'),
 
     // Library
+    podcastSearchInput: document.getElementById('podcast-search-input'),
     podcastSortSelect: document.getElementById('podcast-sort-select'),
     filterPodAll: document.getElementById('filter-pod-all'),
     filterPodFavs: document.getElementById('filter-pod-favs'),
@@ -53,6 +55,9 @@
     continueGrid: document.getElementById('continue-listening-grid'),
     libraryGrid: document.getElementById('library-grid'),
     libraryEmpty: document.getElementById('library-empty'),
+    libraryEmptyTitle: document.getElementById('library-empty-title'),
+    libraryEmptyDesc: document.getElementById('library-empty-desc'),
+    btnEmptyClearSearch: document.getElementById('btn-empty-clear-search'),
     btnEmptyAdd: document.getElementById('btn-empty-add'),
     btnRefreshAll: document.getElementById('btn-refresh-all'),
 
@@ -410,8 +415,30 @@
     if (el.podcastSortSelect && el.podcastSortSelect.value !== state.podcastSort) {
       el.podcastSortSelect.value = state.podcastSort;
     }
+    if (el.podcastSearchInput && el.podcastSearchInput.value !== state.librarySearchQuery) {
+      el.podcastSearchInput.value = state.librarySearchQuery;
+    }
 
     let list = [...state.subscriptions];
+
+    // Filter by search query (title, author, description)
+    if (state.librarySearchQuery) {
+      const q = state.librarySearchQuery.toLowerCase();
+      list = list.filter(p => {
+        const title = (p.title || '').toLowerCase();
+        const author = (p.author || '').toLowerCase();
+        const desc = (p.description || '').toLowerCase();
+        return title.includes(q) || author.includes(q) || desc.includes(q);
+      });
+
+      if (el.continueSection) {
+        el.continueSection.style.display = 'none';
+      }
+    } else {
+      if (el.continueSection && el.continueGrid && el.continueGrid.children.length > 0) {
+        el.continueSection.style.display = 'block';
+      }
+    }
 
     // Filter favorites
     if (state.podcastFilter === 'favs') {
@@ -440,6 +467,23 @@
     if (list.length === 0) {
       el.libraryEmpty.style.display = 'block';
       el.libraryGrid.style.display = 'none';
+
+      if (state.subscriptions.length === 0) {
+        if (el.libraryEmptyTitle) el.libraryEmptyTitle.textContent = 'No podcast subscriptions yet';
+        if (el.libraryEmptyDesc) el.libraryEmptyDesc.textContent = 'Add a podcast feed URL or sync with AntennaPod to start listening.';
+        if (el.btnEmptyAdd) el.btnEmptyAdd.style.display = 'inline-block';
+        if (el.btnEmptyClearSearch) el.btnEmptyClearSearch.style.display = 'none';
+      } else if (state.librarySearchQuery) {
+        if (el.libraryEmptyTitle) el.libraryEmptyTitle.textContent = `No podcasts found matching "${state.librarySearchQuery}"`;
+        if (el.libraryEmptyDesc) el.libraryEmptyDesc.textContent = 'Check for typos or try searching by author or keyword.';
+        if (el.btnEmptyAdd) el.btnEmptyAdd.style.display = 'none';
+        if (el.btnEmptyClearSearch) el.btnEmptyClearSearch.style.display = 'inline-block';
+      } else if (state.podcastFilter === 'favs') {
+        if (el.libraryEmptyTitle) el.libraryEmptyTitle.textContent = 'No favorite podcasts yet';
+        if (el.libraryEmptyDesc) el.libraryEmptyDesc.textContent = 'Click the star icon on any podcast card to mark it as a favorite.';
+        if (el.btnEmptyAdd) el.btnEmptyAdd.style.display = 'none';
+        if (el.btnEmptyClearSearch) el.btnEmptyClearSearch.style.display = 'none';
+      }
       return;
     }
 
@@ -1363,6 +1407,31 @@
       renderEpisodesList();
     });
   });
+
+  // Library Search
+  if (el.podcastSearchInput) {
+    el.podcastSearchInput.addEventListener('input', (e) => {
+      state.librarySearchQuery = e.target.value.trim();
+      renderLibrary();
+    });
+
+    el.podcastSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.librarySearchQuery) {
+        e.preventDefault();
+        state.librarySearchQuery = '';
+        el.podcastSearchInput.value = '';
+        renderLibrary();
+      }
+    });
+  }
+
+  if (el.btnEmptyClearSearch) {
+    el.btnEmptyClearSearch.addEventListener('click', () => {
+      state.librarySearchQuery = '';
+      if (el.podcastSearchInput) el.podcastSearchInput.value = '';
+      renderLibrary();
+    });
+  }
 
   // Library Sorting & Filtering
   if (el.podcastSortSelect) {
