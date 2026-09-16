@@ -42,6 +42,7 @@
   --theme-accent: var(--ctp-mauve);
   --theme-accent-hover: #b48ded;
   --theme-accent-rgb: 203, 166, 247;
+  color-scheme: dark;
 }
 
 [data-theme="latte"] {
@@ -84,6 +85,7 @@
   --theme-accent: var(--ctp-mauve);
   --theme-accent-hover: #7224de;
   --theme-accent-rgb: 136, 57, 239;
+  color-scheme: light;
 }
 
 * {
@@ -918,6 +920,13 @@ body {
   padding: 0.3rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
+  outline: none;
+}
+
+.speed-selector:focus,
+.speed-selector:focus-visible {
+  outline: none;
+  border-color: var(--theme-accent);
 }
 
 .volume-container {
@@ -1299,6 +1308,20 @@ video:-webkit-full-screen {
 
 .video-fs-player-bar .speed-selector:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+.video-fs-player-bar .speed-selector:focus,
+.video-fs-player-bar .speed-selector:focus-visible,
+.video-fs-player-bar .speed-selector:active {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.video-fs-player-bar .speed-selector:-moz-focusring {
+  outline: none !important;
+  color: transparent;
+  text-shadow: 0 0 0 #fff;
 }
 
 .video-fs-player-bar .speed-selector option {
