@@ -165,6 +165,23 @@ test('RSS feed parser', () => {
   assert.equal(result.episodes[1].title, 'Episode 2: Deep Space Video');
   assert.equal(result.episodes[1].enclosureType, 'video/mp4');
   assert.equal(result.episodes[1].duration, 3600 + 15 * 60);
+
+  // HTML entities and character references decoding test
+  const sampleWithEntities = `<?xml version="1.0" encoding="UTF-8"?>
+  <rss version="2.0">
+    <channel>
+      <title>Driver&#39;s Seat &amp; &quot;Speed&quot;</title>
+      <description>Author&#39;s notes &amp; reviews</description>
+      <item>
+        <title><![CDATA[Episode 1: Driver&#39;s Journey &rsquo;Special&rsquo;]]></title>
+        <enclosure url="https://example.com/ep.mp3" type="audio/mpeg"/>
+      </item>
+    </channel>
+  </rss>`;
+  const parsedEntities = parsePodcastFeed(sampleWithEntities, 'https://example.com/feed.xml');
+  assert.equal(parsedEntities.podcast.title, 'Driver\'s Seat & "Speed"');
+  assert.equal(parsedEntities.podcast.description, 'Author\'s notes & reviews');
+  assert.equal(parsedEntities.episodes[0].title, 'Episode 1: Driver\'s Journey \'Special\'');
 });
 
 test('Configuration storage', () => {

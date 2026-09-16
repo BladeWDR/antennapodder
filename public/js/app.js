@@ -577,8 +577,8 @@
       state.currentEpisodes = data.podcast.episodes || [];
 
       el.detailArt.src = data.podcast.image_url || '';
-      el.detailTitle.textContent = data.podcast.title;
-      el.detailAuthor.textContent = data.podcast.author || 'Unknown author';
+      el.detailTitle.textContent = decodeHtml(data.podcast.title);
+      el.detailAuthor.textContent = decodeHtml(data.podcast.author || 'Unknown author');
       el.detailDesc.innerHTML = data.podcast.description || '';
       el.episodeSearchInput.value = '';
       state.filter = 'all';
@@ -760,13 +760,13 @@
 
     // Update player bar info
     el.playerThumb.src = episode.image_url || podcast.image_url || '';
-    el.playerTitle.textContent = episode.title;
-    el.playerPodcast.textContent = podcast.title;
+    el.playerTitle.textContent = decodeHtml(episode.title);
+    el.playerPodcast.textContent = decodeHtml(podcast.title);
 
     // Update modal info
     el.nowplayingArt.src = episode.image_url || podcast.image_url || '';
-    el.nowplayingTitle.textContent = episode.title;
-    el.nowplayingPodcast.textContent = podcast.title;
+    el.nowplayingTitle.textContent = decodeHtml(episode.title);
+    el.nowplayingPodcast.textContent = decodeHtml(podcast.title);
     el.nowplayingDesc.innerHTML = episode.description || 'No show notes available.';
 
     if (isVideo) {
@@ -1123,9 +1123,9 @@
   function updateMediaSession(episode, podcast) {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: episode.title,
-        artist: podcast.author || podcast.title,
-        album: podcast.title,
+        title: decodeHtml(episode.title),
+        artist: decodeHtml(podcast.author || podcast.title),
+        album: decodeHtml(podcast.title),
         artwork: [
           { src: episode.image_url || podcast.image_url || '', sizes: '512x512', type: 'image/jpeg' }
         ]
@@ -1565,10 +1565,17 @@
     }
   });
 
-  // Utility: HTML Escaping
+  // Utility: HTML Decoding and Escaping
+  function decodeHtml(html) {
+    if (!html || typeof html !== 'string' || !html.includes('&')) return html || '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
-    return String(str)
+    const decoded = decodeHtml(str);
+    return String(decoded)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')

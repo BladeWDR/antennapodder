@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeHtmlEntities } from './feed-parser.js';
 
 let dbInstance = null;
 
@@ -166,6 +167,26 @@ export function getDatabase(dataDir = null) {
   } catch {}
   try {
     db.exec('ALTER TABLE episode_actions ADD COLUMN is_favorite INTEGER DEFAULT 0');
+  } catch {}
+
+  // Decode legacy HTML entities stored in existing databases
+  try {
+    const podcastsWithEntities = db.prepare(`SELECT id, title, author FROM podcasts WHERE title LIKE '%&%' OR author LIKE '%&%'`).all();
+    for (const p of podcastsWithEntities) {
+      const decodedTitle = decodeHtmlEntities(p.title);
+      const decodedAuthor = decodeHtmlEntities(p.author);
+      if (decodedTitle !== p.title || decodedAuthor !== p.author) {
+        db.prepare(`UPDATE podcasts SET title = ?, author = ? WHERE id = ?`).run(decodedTitle, decodedAuthor, p.id);
+      }
+    }
+
+    const episodesWithEntities = db.prepare(`SELECT id, title FROM episodes WHERE title LIKE '%&%'`).all();
+    for (const e of episodesWithEntities) {
+      const decodedTitle = decodeHtmlEntities(e.title);
+      if (decodedTitle !== e.title) {
+        db.prepare(`UPDATE episodes SET title = ? WHERE id = ?`).run(decodedTitle, e.id);
+      }
+    }
   } catch {}
 
   // Default configuration
