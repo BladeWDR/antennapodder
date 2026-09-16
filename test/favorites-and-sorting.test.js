@@ -225,6 +225,19 @@ test('Podcast sorting, favorite podcasts, and favorite episodes two-way sync', a
     assert.equal(favsAfterPlay[0].id, ep2Id);
     assert.equal(favsAfterPlay[0].position, 600);
 
+    // Test OPML Export endpoint
+    const opmlRes = await fetch(`${baseUrl}/api/library/export.opml`, {
+      headers: { Cookie: `sessionid=${sessionToken}` }
+    });
+    assert.equal(opmlRes.status, 200);
+    assert.ok(opmlRes.headers.get('content-type').includes('application/xml'));
+    assert.ok(opmlRes.headers.get('content-disposition').includes('attachment'));
+    const opmlText = await opmlRes.text();
+    assert.ok(opmlText.includes('<opml version="2.0">'));
+    assert.ok(opmlText.includes('xmlUrl="https://example.com/pod1.xml"'));
+    assert.ok(opmlText.includes('xmlUrl="https://example.com/pod2.xml"'));
+    assert.ok(opmlText.includes('title="Alpha Podcast"'));
+    assert.ok(opmlText.includes('title="Zeta Podcast"'));
   } finally {
     server.close();
     if (fs.existsSync(TEST_DATA_DIR)) {

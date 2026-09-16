@@ -25,7 +25,7 @@ import {
   getUserDevices,
   updateUserPassword
 } from './db.js';
-import { fetchAndParseFeed } from './feed-parser.js';
+import { fetchAndParseFeed, generateOpml } from './feed-parser.js';
 
 export function getAuthenticatedUser(db, req) {
   const cookieHeader = req.headers['cookie'];
@@ -133,6 +133,19 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
   if (pathname === '/api/library' && method === 'GET') {
     const subscriptions = getUserSubscriptions(db, authUser.id);
     sendJson(200, { subscriptions });
+    return true;
+  }
+
+  // OPML Export: GET /api/library/export.opml or /api/subscriptions/export.opml
+  if ((pathname === '/api/library/export.opml' || pathname === '/api/subscriptions/export.opml' || pathname === '/api/export/opml') && method === 'GET') {
+    const subscriptions = getUserSubscriptions(db, authUser.id);
+    const opml = generateOpml(subscriptions);
+    res.writeHead(200, {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="antennapodder-subscriptions.opml"',
+      'Content-Length': Buffer.byteLength(opml, 'utf8')
+    });
+    res.end(opml);
     return true;
   }
 

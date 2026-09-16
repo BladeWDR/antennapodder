@@ -40,6 +40,7 @@ I am vehemently opposed to exposing this directly directly to the internet. Put 
   - Sort subscriptions by **Most Recently Updated**, **Alphabetical (A-Z)**, or **Number of Episodes**.
   - Visible episode counts and last update dates directly on podcast cards.
   - Filter podcasts to view All or Favorites.
+  - OPML export for backup and easy migration to any podcast client.
   - Easily subscribe by RSS / Atom feed URL.
   - Integrated podcast directory search (search podcasts by name and subscribe with one click).
   - Single-feed manual refresh, batch library refresh, and automatic periodic background feed updates.

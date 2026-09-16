@@ -227,3 +227,38 @@ export async function fetchAndParseFeed(feedUrl) {
   const xmlText = await res.text();
   return parsePodcastFeed(xmlText, feedUrl);
 }
+
+function escapeXml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+export function generateOpml(subscriptions) {
+  const dateStr = new Date().toUTCString();
+  const outlines = (subscriptions || []).map(sub => {
+    const title = escapeXml(sub.title || sub.podcast_url);
+    const xmlUrl = escapeXml(sub.podcast_url);
+    const htmlUrl = escapeXml(sub.link || '');
+    const desc = escapeXml(sub.description || '');
+    return `      <outline type="rss" text="${title}" title="${title}" xmlUrl="${xmlUrl}" htmlUrl="${htmlUrl}" description="${desc}"/>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>AntennaPodder Subscriptions</title>
+    <dateCreated>${dateStr}</dateCreated>
+  </head>
+  <body>
+    <outline text="feeds" title="feeds">
+${outlines}
+    </outline>
+  </body>
+</opml>
+`;
+}
