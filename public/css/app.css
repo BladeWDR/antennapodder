@@ -173,6 +173,12 @@ body {
   user-select: none;
 }
 
+.btn-sm {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
 .btn-primary {
   background-color: var(--theme-accent);
   color: var(--ctp-base);
@@ -602,6 +608,47 @@ body {
   font-weight: 600;
 }
 
+.episodes-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background-color: var(--ctp-surface0);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.batch-bar-left {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+
+.batch-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.episode-select-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding-right: 0.25rem;
+}
+
+.episode-select-checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+  accent-color: var(--theme-accent);
+}
+
 .episode-item {
   background-color: var(--theme-card-bg);
   border: 1px solid var(--theme-border);
@@ -612,6 +659,11 @@ body {
   gap: 1rem;
   align-items: center;
   transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.episode-item.selected {
+  border-color: var(--theme-accent);
+  background-color: var(--ctp-surface0);
 }
 
 .episode-item:hover {

@@ -456,7 +456,18 @@ export function upsertPodcast(db, { url, title, description, imageUrl, author, l
 }
 
 export function upsertEpisode(db, podcastId, episode) {
-  const { guid, title, enclosureUrl, enclosureType, enclosureLength, duration, pubDate, description, imageUrl, link } = episode;
+  const {
+    guid,
+    title,
+    enclosureUrl,
+    enclosureType,
+    enclosureLength = 0,
+    duration = 0,
+    pubDate = 0,
+    description = null,
+    imageUrl = null,
+    link = null
+  } = episode;
   const existing = db.prepare('SELECT id FROM episodes WHERE podcast_id = ? AND guid = ?').get(podcastId, guid);
 
   if (existing) {
@@ -665,6 +676,86 @@ export function toggleEpisodePlayed(db, userId, episodeId) {
     device: 'web',
     action
   });
+}
+
+export function markEpisodesPlayedBatch(db, userId, episodeIds) {
+  if (!Array.isArray(episodeIds) || episodeIds.length === 0) {
+    return { count: 0 };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const isoTimestamp = new Date().toISOString();
+
+  const getEpStmt = db.prepare(`
+    SELECT e.id, e.guid, e.enclosure_url, e.duration, p.url as podcast_url
+    FROM episodes e
+    JOIN podcasts p ON p.id = e.podcast_id
+    WHERE e.id = ?
+  `);
+
+  const existingStateStmt = db.prepare(`
+    SELECT position, total, is_played FROM episode_states WHERE user_id = ? AND episode_url = ?
+  `);
+
+  const updateStateStmt = db.prepare(`
+    UPDATE episode_states 
+    SET podcast_url = ?,
+        guid = COALESCE(?, guid),
+        position = ?,
+        total = CASE WHEN ? > 0 THEN ? ELSE total END,
+        is_played = 1,
+        updated_at = ?
+    WHERE user_id = ? AND episode_url = ?
+  `);
+
+  const insertStateStmt = db.prepare(`
+    INSERT INTO episode_states (user_id, podcast_url, episode_url, guid, position, total, is_played, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+  `);
+
+  const insertActionStmt = db.prepare(`
+    INSERT INTO episode_actions (user_id, podcast_url, episode_url, guid, action, position, started, total, device, action_timestamp, created_at_epoch)
+    VALUES (?, ?, ?, ?, 'play', ?, 0, ?, 'web', ?, ?)
+  `);
+
+  let count = 0;
+  db.exec('BEGIN');
+  try {
+    for (const rawId of episodeIds) {
+      const id = parseInt(rawId, 10);
+      if (!id) continue;
+      const episode = getEpStmt.get(id);
+      if (!episode) continue;
+
+      const dur = episode.duration || 0;
+      const existing = existingStateStmt.get(userId, episode.enclosure_url);
+      if (existing) {
+        updateStateStmt.run(episode.podcast_url, episode.guid, dur, dur, dur, now, userId, episode.enclosure_url);
+      } else {
+        insertStateStmt.run(userId, episode.podcast_url, episode.enclosure_url, episode.guid, dur, dur, now);
+      }
+
+      insertActionStmt.run(userId, episode.podcast_url, episode.enclosure_url, episode.guid, dur, dur, isoTimestamp, now);
+      count++;
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return { count };
+}
+
+export function markAllEpisodesPlayed(db, userId, podcastId) {
+  const unplayedEpisodes = db.prepare(`
+    SELECT e.id
+    FROM episodes e
+    LEFT JOIN episode_states s ON s.user_id = ? AND s.episode_url = e.enclosure_url
+    WHERE e.podcast_id = ? AND COALESCE(s.is_played, 0) = 0
+  `).all(userId, podcastId);
+
+  const episodeIds = unplayedEpisodes.map(e => e.id);
+  return markEpisodesPlayedBatch(db, userId, episodeIds);
 }
 
 export function toggleEpisodeFavorite(db, userId, episodeId) {

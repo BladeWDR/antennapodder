@@ -45,8 +45,10 @@ I am vehemently opposed to exposing this directly directly to the internet. Put 
   - Integrated podcast directory search (search podcasts by name and subscribe with one click).
   - Single-feed manual refresh, batch library refresh, and automatic periodic background feed updates.
   - Unsubscribing immediately syncs feed removal to AntennaPod.
-- **Episode Filtering & In-Feed Search:**
+- **Episode Filtering, Batch Actions & Search:**
   - Filter episodes within any podcast: **All**, **Unplayed**, **In Progress**, **Played**, or **Favorites**.
+  - Multi-select mode with batch played status updating for selected episodes.
+  - One-click "Mark All Played" button for entire podcast feeds with confirmation dialog.
   - Instant text search across all episodes in a podcast feed.
   - Star / favorite individual episodes and podcasts with two-way sync to AntennaPod.
 - **Themes & UI Polish:**

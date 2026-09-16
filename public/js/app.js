@@ -26,7 +26,9 @@
     podcastSort: localStorage.getItem('antennapodder_podcast_sort') || 'recent',
     podcastFilter: 'all',
     librarySearchQuery: '',
-    syncInterval: null
+    syncInterval: null,
+    multiSelectMode: false,
+    selectedEpisodeIds: new Set()
   };
 
   // DOM Elements
@@ -70,11 +72,20 @@
     btnPodcastFavorite: document.getElementById('btn-podcast-favorite'),
     iconPodcastFav: document.getElementById('icon-podcast-fav'),
     textPodcastFav: document.getElementById('text-podcast-fav'),
+    btnPodcastMarkAllPlayed: document.getElementById('btn-podcast-mark-all-played'),
     btnPodcastRefresh: document.getElementById('btn-podcast-refresh'),
     btnPodcastUnsubscribe: document.getElementById('btn-podcast-unsubscribe'),
     episodesList: document.getElementById('episodes-list'),
     episodeSearchInput: document.getElementById('episode-search-input'),
     filterBtns: document.querySelectorAll('.filter-btn'),
+    btnToggleMultiSelect: document.getElementById('btn-toggle-multi-select'),
+    textToggleMultiSelect: document.getElementById('text-toggle-multi-select'),
+    episodesBatchBar: document.getElementById('episodes-batch-bar'),
+    batchSelectedCount: document.getElementById('batch-selected-count'),
+    btnBatchSelectAll: document.getElementById('btn-batch-select-all'),
+    btnBatchDeselectAll: document.getElementById('btn-batch-deselect-all'),
+    btnBatchMarkPlayed: document.getElementById('btn-batch-mark-played'),
+    btnBatchCancel: document.getElementById('btn-batch-cancel'),
 
     // Media Elements
     nativeAudio: document.getElementById('native-audio'),
@@ -248,6 +259,10 @@
     el.viewLibrary.classList.remove('active');
     el.viewPodcast.classList.remove('active');
     el.viewSettings.classList.remove('active');
+
+    if (viewName !== 'podcast' && state.multiSelectMode) {
+      setMultiSelectMode(false);
+    }
 
     if (viewName === 'library') {
       el.viewLibrary.classList.add('active');
@@ -575,6 +590,17 @@
 
       state.currentPodcast = data.podcast;
       state.currentEpisodes = data.podcast.episodes || [];
+      state.multiSelectMode = false;
+      state.selectedEpisodeIds.clear();
+      if (el.episodesBatchBar) el.episodesBatchBar.style.display = 'none';
+      if (el.btnToggleMultiSelect) {
+        el.btnToggleMultiSelect.classList.remove('active');
+        if (el.textToggleMultiSelect) el.textToggleMultiSelect.textContent = 'Select';
+      }
+      if (el.episodesList) {
+        el.episodesList.classList.remove('multi-select-active');
+      }
+      updateBatchCount();
 
       el.detailArt.src = data.podcast.image_url || '';
       el.detailTitle.textContent = decodeHtml(data.podcast.title);
@@ -603,9 +629,37 @@
     });
   }
 
-  function renderEpisodesList() {
-    el.episodesList.innerHTML = '';
+  function updateBatchCount() {
+    if (el.batchSelectedCount) {
+      el.batchSelectedCount.textContent = state.selectedEpisodeIds.size;
+    }
+  }
 
+  function setMultiSelectMode(enabled) {
+    state.multiSelectMode = enabled;
+    if (el.episodesBatchBar) {
+      el.episodesBatchBar.style.display = enabled ? 'flex' : 'none';
+    }
+    if (el.btnToggleMultiSelect) {
+      if (enabled) {
+        el.btnToggleMultiSelect.classList.add('active');
+        if (el.textToggleMultiSelect) el.textToggleMultiSelect.textContent = 'Cancel';
+      } else {
+        el.btnToggleMultiSelect.classList.remove('active');
+        if (el.textToggleMultiSelect) el.textToggleMultiSelect.textContent = 'Select';
+      }
+    }
+    if (!enabled) {
+      state.selectedEpisodeIds.clear();
+    }
+    if (el.episodesList) {
+      el.episodesList.classList.toggle('multi-select-active', enabled);
+    }
+    updateBatchCount();
+    renderEpisodesList();
+  }
+
+  function getFilteredEpisodes() {
     let filtered = state.currentEpisodes;
 
     if (state.filter === 'unplayed') {
@@ -623,6 +677,14 @@
       filtered = filtered.filter(e => e.title.toLowerCase().includes(q) || (e.description && e.description.toLowerCase().includes(q)));
     }
 
+    return filtered;
+  }
+
+  function renderEpisodesList() {
+    el.episodesList.innerHTML = '';
+
+    const filtered = getFilteredEpisodes();
+
     if (filtered.length === 0) {
       el.episodesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--theme-muted);">No episodes match this filter.</div>';
       return;
@@ -630,7 +692,8 @@
 
     filtered.forEach(ep => {
       const item = document.createElement('div');
-      item.className = `episode-item ${ep.is_played ? 'played' : ''}`;
+      const isSelected = state.selectedEpisodeIds.has(ep.id);
+      item.className = `episode-item ${ep.is_played ? 'played' : ''} ${isSelected ? 'selected' : ''}`;
 
       const isVideoEp = (ep.enclosure_type && ep.enclosure_type.startsWith('video/')) || /\.(mp4|m4v|webm|mov)$/i.test(ep.enclosure_url);
       const isCurrentActive = state.activeEpisode && state.activeEpisode.id === ep.id;
@@ -643,7 +706,14 @@
         progressPercent = Math.min(100, Math.round((ep.position / ep.total_duration) * 100));
       }
 
+      const selectCheckboxHtml = state.multiSelectMode ? `
+        <div class="episode-select-wrapper">
+          <input type="checkbox" class="episode-select-checkbox" data-id="${ep.id}" ${isSelected ? 'checked' : ''} aria-label="Select episode">
+        </div>
+      ` : '';
+
       item.innerHTML = `
+        ${selectCheckboxHtml}
         <button class="episode-play-btn" title="${isCurrentActive && state.isPlaying ? 'Pause' : 'Play'}">
           ${playIcon}
         </button>
@@ -678,6 +748,36 @@
           </button>
         </div>
       `;
+
+      if (state.multiSelectMode) {
+        const checkbox = item.querySelector('.episode-select-checkbox');
+        if (checkbox) {
+          checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+              state.selectedEpisodeIds.add(ep.id);
+              item.classList.add('selected');
+            } else {
+              state.selectedEpisodeIds.delete(ep.id);
+              item.classList.remove('selected');
+            }
+            updateBatchCount();
+          });
+        }
+
+        item.addEventListener('click', (e) => {
+          if (e.target.closest('button') || e.target.closest('input')) return;
+          if (state.selectedEpisodeIds.has(ep.id)) {
+            state.selectedEpisodeIds.delete(ep.id);
+            if (checkbox) checkbox.checked = false;
+            item.classList.remove('selected');
+          } else {
+            state.selectedEpisodeIds.add(ep.id);
+            if (checkbox) checkbox.checked = true;
+            item.classList.add('selected');
+          }
+          updateBatchCount();
+        });
+      }
 
       // Play button click
       const playBtn = item.querySelector('.episode-play-btn');
@@ -1393,6 +1493,109 @@
       el.btnRefreshAll.disabled = false;
     }
   });
+
+  // Mark all episodes of current podcast as played
+  if (el.btnPodcastMarkAllPlayed) {
+    el.btnPodcastMarkAllPlayed.addEventListener('click', async () => {
+      if (!state.currentPodcast) return;
+      const unplayedCount = state.currentEpisodes.filter(e => !e.is_played).length;
+      if (unplayedCount === 0) {
+        showToast('All episodes are already marked as played');
+        return;
+      }
+      if (!confirm(`Mark all ${unplayedCount} unplayed episode${unplayedCount === 1 ? '' : 's'} as played?`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/podcasts/${state.currentPodcast.id}/mark-all-played`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+          state.currentEpisodes.forEach(ep => {
+            ep.is_played = 1;
+            ep.position = ep.duration || ep.total_duration || 0;
+          });
+          if (state.multiSelectMode) {
+            setMultiSelectMode(false);
+          } else {
+            renderEpisodesList();
+          }
+          loadInProgressEpisodes();
+          showToast(`Marked ${data.count} episode${data.count === 1 ? '' : 's'} as played (synced)`);
+        } else {
+          showToast('Failed to mark episodes as played', true);
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, true);
+      }
+    });
+  }
+
+  // Multi-select Mode & Batch Actions
+  if (el.btnToggleMultiSelect) {
+    el.btnToggleMultiSelect.addEventListener('click', () => {
+      setMultiSelectMode(!state.multiSelectMode);
+    });
+  }
+
+  if (el.btnBatchSelectAll) {
+    el.btnBatchSelectAll.addEventListener('click', () => {
+      const filtered = getFilteredEpisodes();
+      filtered.forEach(ep => state.selectedEpisodeIds.add(ep.id));
+      updateBatchCount();
+      renderEpisodesList();
+    });
+  }
+
+  if (el.btnBatchDeselectAll) {
+    el.btnBatchDeselectAll.addEventListener('click', () => {
+      state.selectedEpisodeIds.clear();
+      updateBatchCount();
+      renderEpisodesList();
+    });
+  }
+
+  if (el.btnBatchCancel) {
+    el.btnBatchCancel.addEventListener('click', () => {
+      setMultiSelectMode(false);
+    });
+  }
+
+  if (el.btnBatchMarkPlayed) {
+    el.btnBatchMarkPlayed.addEventListener('click', async () => {
+      const ids = Array.from(state.selectedEpisodeIds);
+      if (ids.length === 0) {
+        showToast('No episodes selected', true);
+        return;
+      }
+      try {
+        const res = await fetch('/api/episodes/mark-played-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ episodeIds: ids })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const idSet = new Set(ids);
+          state.currentEpisodes.forEach(ep => {
+            if (idSet.has(ep.id)) {
+              ep.is_played = 1;
+              ep.position = ep.duration || ep.total_duration || 0;
+            }
+          });
+          setMultiSelectMode(false);
+          renderEpisodesList();
+          loadInProgressEpisodes();
+          showToast(`Marked ${data.count} episode${data.count === 1 ? '' : 's'} as played (synced)`);
+        } else {
+          showToast('Failed to mark episodes as played', true);
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, true);
+      }
+    });
+  }
 
   // Episode Search & Filter Event Handlers
   el.episodeSearchInput.addEventListener('input', (e) => {

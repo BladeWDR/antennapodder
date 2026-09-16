@@ -17,6 +17,8 @@ import {
   getFavoriteEpisodes,
   updateEpisodePlayback,
   toggleEpisodePlayed,
+  markEpisodesPlayedBatch,
+  markAllEpisodesPlayed,
   togglePodcastFavorite,
   toggleEpisodeFavorite,
   getConfig,
@@ -245,6 +247,19 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
     return true;
   }
 
+  const podcastMarkAllMatch = pathname.match(/^\/api\/podcasts\/(\d+)\/mark-all-played$/);
+  if (podcastMarkAllMatch && method === 'POST') {
+    const podcastId = parseInt(podcastMarkAllMatch[1], 10);
+    const podcast = getPodcastById(db, podcastId, authUser.id);
+    if (!podcast) {
+      sendError(404, 'Podcast not found');
+      return true;
+    }
+    const result = markAllEpisodesPlayed(db, authUser.id, podcastId);
+    sendJson(200, { success: true, count: result.count });
+    return true;
+  }
+
   // ----------------------------------------------------
   // Episode Operations: /api/episodes/:id/*
   // ----------------------------------------------------
@@ -311,6 +326,18 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
       return true;
     }
     sendJson(200, { success: true, state: result });
+    return true;
+  }
+
+  // Batch Mark Episodes Played: POST /api/episodes/mark-played-batch
+  if (pathname === '/api/episodes/mark-played-batch' && method === 'POST') {
+    const { episodeIds } = body || {};
+    if (!Array.isArray(episodeIds)) {
+      sendError(400, 'episodeIds must be an array');
+      return true;
+    }
+    const result = markEpisodesPlayedBatch(db, authUser.id, episodeIds);
+    sendJson(200, { success: true, count: result.count });
     return true;
   }
 
