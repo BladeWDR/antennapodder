@@ -990,6 +990,7 @@
         video.webkitEnterFullscreen();
       }
     } catch (err) {
+      console.warn('Wrapper fullscreen request failed:', err);
       if (video.requestFullscreen) {
         await video.requestFullscreen().catch(() => {});
       }
@@ -999,10 +1000,14 @@
   function handleFullscreenChange() {
     const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
     if (isFs) {
+      if (el.nowplayingVideoWrapper) {
+        el.nowplayingVideoWrapper.classList.add('is-fullscreen');
+      }
       resetFsControlsTimer();
     } else {
       clearTimeout(fsControlsTimeout);
       if (el.nowplayingVideoWrapper) {
+        el.nowplayingVideoWrapper.classList.remove('is-fullscreen');
         el.nowplayingVideoWrapper.classList.remove('controls-hidden');
       }
       if (openedModalForFullscreen) {
