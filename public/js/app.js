@@ -136,6 +136,7 @@
     btnModalSkipBack: document.getElementById('btn-modal-skip-back'),
     btnModalSkipForward: document.getElementById('btn-modal-skip-forward'),
     modalBadgeSkipBack: document.getElementById('modal-badge-skip-back'),
+    modalBadgeSkipForward: document.getElementById('modal-badge-skip-forward'),
     nowplayingDesc: document.getElementById('nowplaying-desc'),
 
     // Fullscreen Video Player Elements
@@ -338,6 +339,7 @@
         return false;
       }
     } catch (e) {
+      console.error('checkAuth failed:', e);
       el.modalLogin.classList.add('active');
       return false;
     }
@@ -1342,8 +1344,8 @@
     });
   }
 
-  if (el.videoFsVolumeToggle) {
-    el.videoFsVolumeToggle.addEventListener('click', () => {
+  if (el.btnVideoFsVolumeToggle) {
+    el.btnVideoFsVolumeToggle.addEventListener('click', () => {
       state.isMuted = !state.isMuted;
       updateVolumeUI();
       resetFsControlsTimer();
