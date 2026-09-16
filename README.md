@@ -8,6 +8,10 @@ It is not associated in any way with the AntennaPod or gPodder projects.
 
 I am vehemently opposed to exposing this directly directly to the internet. Put it behind a firewall and access the sync endpoint over a VPN.
 
+## Screenshots
+
+![screenshot showing the web interface of AntennaPodder](docs/screenshot.png)
+
 ---
 
 ## Key Features
