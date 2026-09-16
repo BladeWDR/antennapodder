@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AntennaPodder</title>
-  <link rel="stylesheet" href="/css/app.css?v=2">
+  <link rel="stylesheet" href="/css/app.css?v=3">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23cba6f7'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z'/></svg>">
 </head>
 <body>
@@ -318,7 +318,11 @@
         <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="1">
       </div>
 
-      <button class="btn-ctrl" id="btn-expand-nowplaying" title="Open Full Screen Player">
+      <button class="btn-ctrl" id="btn-player-fullscreen-video" title="Fullscreen Video" style="display: none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+      </button>
+
+      <button class="btn-ctrl" id="btn-expand-nowplaying" title="Now Playing Details">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
       </button>
     </div>
@@ -338,6 +342,9 @@
         <!-- Video Player Display (if video podcast) -->
         <div id="nowplaying-video-wrapper" class="video-player-container">
           <video id="nowplaying-video" class="video-element" playsinline></video>
+          <button id="btn-video-overlay-fullscreen" class="video-fullscreen-btn" title="Fullscreen Video">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+          </button>
         </div>
 
         <!-- Audio Artwork Display (if audio podcast) -->
@@ -455,6 +462,6 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="/js/app.js?v=2"></script>
+  <script src="/js/app.js?v=3"></script>
 </body>
 </html>

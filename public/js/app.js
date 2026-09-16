@@ -100,10 +100,12 @@
     iconVolHigh: document.getElementById('icon-vol-high'),
     iconVolMute: document.getElementById('icon-vol-mute'),
     btnExpandNowplaying: document.getElementById('btn-expand-nowplaying'),
+    btnPlayerFullscreenVideo: document.getElementById('btn-player-fullscreen-video'),
 
     // Now Playing Modal
     modalNowPlaying: document.getElementById('modal-now-playing'),
     btnCloseNowplaying: document.getElementById('btn-close-nowplaying'),
+    btnVideoOverlayFullscreen: document.getElementById('btn-video-overlay-fullscreen'),
     nowplayingArt: document.getElementById('nowplaying-art'),
     nowplayingTitle: document.getElementById('nowplaying-title'),
     nowplayingPodcast: document.getElementById('nowplaying-podcast'),
@@ -706,6 +708,7 @@
     el.nowplayingDesc.innerHTML = episode.description || 'No show notes available.';
 
     if (isVideo) {
+      if (el.btnPlayerFullscreenVideo) el.btnPlayerFullscreenVideo.style.display = 'inline-flex';
       el.nowplayingVideoWrapper.classList.add('active');
       el.nowplayingArt.style.display = 'none';
       el.nativeAudio.pause();
@@ -718,6 +721,7 @@
       }
       el.nowplayingVideo.play().catch(console.error);
     } else {
+      if (el.btnPlayerFullscreenVideo) el.btnPlayerFullscreenVideo.style.display = 'none';
       el.nowplayingVideoWrapper.classList.remove('active');
       el.nowplayingArt.style.display = 'block';
       el.nowplayingVideo.pause();
@@ -739,6 +743,32 @@
 
     if (state.currentPodcast && state.currentPodcast.id === podcast.id) {
       renderEpisodesList();
+    }
+  }
+
+  function toggleVideoFullscreen() {
+    const video = el.nowplayingVideo;
+    if (!video) return;
+
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+      return;
+    }
+
+    if (video.requestFullscreen) {
+      video.requestFullscreen().catch(() => {
+        if (el.nowplayingVideoWrapper && el.nowplayingVideoWrapper.requestFullscreen) {
+          el.nowplayingVideoWrapper.requestFullscreen().catch(() => {});
+        }
+      });
+    } else if (video.webkitRequestFullscreen) {
+      video.webkitRequestFullscreen();
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
     }
   }
 
@@ -1285,6 +1315,16 @@
   el.btnExpandNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.add('active'));
   el.btnCloseNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.remove('active'));
 
+  if (el.btnPlayerFullscreenVideo) {
+    el.btnPlayerFullscreenVideo.addEventListener('click', toggleVideoFullscreen);
+  }
+  if (el.btnVideoOverlayFullscreen) {
+    el.btnVideoOverlayFullscreen.addEventListener('click', toggleVideoFullscreen);
+  }
+  if (el.nowplayingVideo) {
+    el.nowplayingVideo.addEventListener('dblclick', toggleVideoFullscreen);
+  }
+
   el.btnOpenAdd.addEventListener('click', () => el.modalAddPodcast.classList.add('active'));
   el.btnEmptyAdd.addEventListener('click', () => el.modalAddPodcast.classList.add('active'));
   el.btnCloseAdd.addEventListener('click', () => el.modalAddPodcast.classList.remove('active'));
@@ -1337,6 +1377,9 @@
       skipForward();
     } else if (e.code === 'KeyM') {
       el.btnVolumeToggle.click();
+    } else if (e.code === 'KeyF' && state.isVideo) {
+      e.preventDefault();
+      toggleVideoFullscreen();
     } else if (e.code === 'Escape') {
       el.modalNowPlaying.classList.remove('active');
       el.modalAddPodcast.classList.remove('active');
