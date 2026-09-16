@@ -897,7 +897,8 @@
     // Update fullscreen video info
     if (el.videoFsTitle) el.videoFsTitle.textContent = decodeHtml(episode.title);
     if (el.videoFsPodcast) el.videoFsPodcast.textContent = decodeHtml(podcast.title);
-    if (el.videoFsSpeedSelect) el.videoFsSpeedSelect.value = state.playbackRate.toString();
+    syncSpeedSelect(el.videoFsSpeedSelect, state.playbackRate);
+    syncSpeedSelect(el.playerSpeed, state.playbackRate);
 
     if (isVideo) {
       if (el.btnPlayerFullscreenVideo) el.btnPlayerFullscreenVideo.style.display = 'inline-flex';
@@ -1267,12 +1268,22 @@
   }
 
   // Speed and Volume
+  function syncSpeedSelect(selectEl, rate) {
+    if (!selectEl) return;
+    const numRate = parseFloat(rate);
+    for (const opt of selectEl.options) {
+      if (Math.abs(parseFloat(opt.value) - numRate) < 0.01) {
+        opt.selected = true;
+        return;
+      }
+    }
+    selectEl.value = numRate.toString();
+  }
+
   function setPlaybackRate(rate) {
     state.playbackRate = parseFloat(rate);
-    el.playerSpeed.value = state.playbackRate.toString();
-    if (el.videoFsSpeedSelect) {
-      el.videoFsSpeedSelect.value = state.playbackRate.toString();
-    }
+    syncSpeedSelect(el.playerSpeed, state.playbackRate);
+    syncSpeedSelect(el.videoFsSpeedSelect, state.playbackRate);
     el.nativeAudio.playbackRate = state.playbackRate;
     el.nowplayingVideo.playbackRate = state.playbackRate;
   }

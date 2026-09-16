@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AntennaPodder</title>
-  <link rel="stylesheet" href="/css/app.css?v=6">
+  <link rel="stylesheet" href="/css/app.css?v=7">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23cba6f7'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z'/></svg>">
 </head>
 <body>
@@ -344,11 +344,11 @@
     <div class="player-right">
       <select id="player-speed" class="speed-selector" title="Playback Speed">
         <option value="0.75">0.75x</option>
-        <option value="1.0" selected>1.0x</option>
+        <option value="1" selected>1.0x</option>
         <option value="1.25">1.25x</option>
         <option value="1.5">1.5x</option>
         <option value="1.75">1.75x</option>
-        <option value="2.0">2.0x</option>
+        <option value="2">2.0x</option>
       </select>
 
       <div class="volume-container">
@@ -428,13 +428,13 @@
               </div>
 
               <div class="video-fs-controls-right">
-                <select id="video-fs-speed-select" class="speed-selector" title="Playback Speed" style="padding: 0.25rem 0.4rem; font-size: 0.8rem;">
+                <select id="video-fs-speed-select" class="speed-selector" title="Playback Speed">
                   <option value="0.75">0.75x</option>
-                  <option value="1.0" selected>1.0x</option>
+                  <option value="1" selected>1.0x</option>
                   <option value="1.25">1.25x</option>
                   <option value="1.5">1.5x</option>
                   <option value="1.75">1.75x</option>
-                  <option value="2.0">2.0x</option>
+                  <option value="2">2.0x</option>
                 </select>
 
                 <div class="volume-container">
@@ -568,6 +568,6 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="/js/app.js?v=12"></script>
+  <script src="/js/app.js?v=13"></script>
 </body>
 </html>

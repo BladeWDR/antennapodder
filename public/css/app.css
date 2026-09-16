@@ -1287,6 +1287,25 @@ video:-webkit-full-screen {
   color: var(--ctp-base);
 }
 
+.video-fs-player-bar .speed-selector {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  outline: none;
+}
+
+.video-fs-player-bar .speed-selector:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.video-fs-player-bar .speed-selector option {
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+}
+
 /* Controls hidden in fullscreen when user is inactive */
 .video-player-container:fullscreen.controls-hidden {
   cursor: none !important;
