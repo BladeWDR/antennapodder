@@ -901,6 +901,51 @@
     }
   }
 
+  function dismissPlayer() {
+    stopSyncHeartbeat();
+    state.isPlaying = false;
+    updatePlayPauseIcons(false);
+
+    // Exit fullscreen if active
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+
+    // Stop and clear media elements
+    el.nativeAudio.pause();
+    el.nativeAudio.removeAttribute('src');
+    el.nativeAudio.load();
+
+    el.nowplayingVideo.pause();
+    el.nowplayingVideo.removeAttribute('src');
+    el.nowplayingVideo.load();
+
+    // Hide player bar and now playing modal
+    el.playerBar.style.display = 'none';
+    el.modalNowPlaying.classList.remove('active');
+    el.nowplayingVideoWrapper.classList.remove('active');
+
+    // Reset scrubber and time text
+    el.playerScrubber.value = 0;
+    el.nowplayingScrubber.value = 0;
+    el.playerTimeCurrent.textContent = '0:00';
+    el.playerTimeTotal.textContent = '0:00';
+    el.nowplayingTimeCurrent.textContent = '0:00';
+    el.nowplayingTimeTotal.textContent = '0:00';
+
+    state.activeEpisode = null;
+    state.activePodcast = null;
+    state.isVideo = false;
+
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+    }
+  }
+
   // Setup media element event listeners
   function setupMediaEventListeners(media) {
     media.addEventListener('timeupdate', () => {
@@ -920,15 +965,24 @@
     });
 
     media.addEventListener('ended', () => {
-      state.isPlaying = false;
-      updatePlayPauseIcons(false);
-      stopSyncHeartbeat();
-      syncCurrentPlaybackState('play');
-      if (state.activeEpisode) {
-        state.activeEpisode.is_played = 1;
-        if (state.currentPodcast) renderEpisodesList();
+      const finishedEp = state.activeEpisode;
+      if (finishedEp) {
+        finishedEp.is_played = 1;
+        const total = Math.floor(finishedEp.duration || media.duration || 0);
+        finishedEp.position = total;
+        fetch(`/api/episodes/${finishedEp.id}/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ position: total, total, is_played: 1, action: 'play' })
+        }).catch(() => {});
       }
-      playNextTrack();
+
+      dismissPlayer();
+
+      if (state.currentPodcast) {
+        renderEpisodesList();
+      }
+      loadInProgressEpisodes();
     });
 
     media.addEventListener('play', () => {
