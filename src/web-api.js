@@ -27,7 +27,8 @@ import {
   getUserDevices,
   updateUserPassword
 } from './db.js';
-import { fetchAndParseFeed, generateOpml } from './feed-parser.js';
+import { fetchAndParseFeed, generateOpml, parseOpml } from './feed-parser.js';
+import { syncFeedInBackground } from './gpodder.js';
 
 export function getAuthenticatedUser(db, req) {
   const cookieHeader = req.headers['cookie'];
@@ -156,6 +157,63 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
       'Content-Length': Buffer.byteLength(opml, 'utf8')
     });
     res.end(opml);
+    return true;
+  }
+
+  // OPML Import: POST /api/library/import.opml or /api/subscriptions/import.opml or /api/library/import-opml
+  if ((pathname === '/api/library/import.opml' || pathname === '/api/subscriptions/import.opml' || pathname === '/api/library/import-opml') && method === 'POST') {
+    let xmlText = '';
+    if (typeof body === 'string') {
+      xmlText = body;
+    } else if (body && typeof body.opml === 'string') {
+      xmlText = body.opml;
+    } else if (body && typeof body.xml === 'string') {
+      xmlText = body.xml;
+    }
+
+    if (!xmlText || !xmlText.trim()) {
+      sendError(400, 'OPML XML content is required');
+      return true;
+    }
+
+    const feeds = parseOpml(xmlText);
+    if (feeds.length === 0) {
+      sendError(400, 'No podcast feeds found in OPML');
+      return true;
+    }
+
+    let imported = 0;
+    let alreadySubscribed = 0;
+
+    for (const feed of feeds) {
+      try {
+        upsertPodcast(db, {
+          url: feed.url,
+          title: feed.title || feed.url,
+          description: null,
+          imageUrl: null,
+          author: null,
+          link: null
+        });
+        const added = addSubscription(db, authUser.id, feed.url);
+        if (added) {
+          imported++;
+        } else {
+          alreadySubscribed++;
+        }
+        syncFeedInBackground(db, feed.url);
+      } catch (err) {
+        console.error(`[OPML Import Error] ${feed.url}:`, err.message);
+      }
+    }
+
+    sendJson(200, {
+      success: true,
+      total: feeds.length,
+      imported,
+      alreadySubscribed,
+      message: `Imported ${imported} podcast subscription${imported === 1 ? '' : 's'}${alreadySubscribed > 0 ? ` (${alreadySubscribed} already subscribed)` : ''}.`
+    });
     return true;
   }
 

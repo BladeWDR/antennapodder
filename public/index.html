@@ -279,17 +279,25 @@
         </form>
       </div>
 
-      <!-- Backup & Export -->
+      <!-- Backup & Restore (OPML) -->
       <div class="settings-card">
         <h3 class="settings-card-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Backup & Export
+          OPML Backup &amp; Import
         </h3>
-        <p class="form-desc">Export your subscribed podcast feeds as an OPML file for backup or to import into any podcast app (such as AntennaPod, Pocket Casts, Apple Podcasts, or gPodder).</p>
-        <a href="/api/library/export.opml" download="antennapodder-subscriptions.opml" class="btn btn-secondary" id="btn-export-opml" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <span>Export Subscriptions (OPML)</span>
-        </a>
+        <p class="form-desc">Export or import your podcast subscriptions as an OPML file. Compatible with AntennaPod, Pocket Casts, Apple Podcasts, gPodder, and other podcast apps.</p>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+          <a href="/api/library/export.opml" download="antennapodder-subscriptions.opml" class="btn btn-secondary" id="btn-export-opml" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Export OPML</span>
+          </a>
+          <label class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <span id="label-import-opml">Import OPML</span>
+            <input type="file" id="input-import-opml" accept=".opml,.xml,text/xml,application/xml,application/octet-stream" style="display: none;">
+          </label>
+        </div>
+        <div id="import-opml-status" style="margin-top: 0.75rem; font-size: 0.85rem; display: none;"></div>
       </div>
 
     </section>
@@ -575,6 +583,18 @@
           <div id="search-results" class="search-results-list" style="display: none;">
             <!-- Search items injected here -->
           </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--theme-border); margin: 1.5rem 0;">
+
+        <!-- Import OPML from Modal -->
+        <div>
+          <label class="form-label">Or Import from OPML</label>
+          <label class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <span id="label-modal-import-opml">Choose OPML File</span>
+            <input type="file" id="input-modal-import-opml" accept=".opml,.xml,text/xml,application/xml,application/octet-stream" style="display: none;">
+          </label>
         </div>
 
       </div>

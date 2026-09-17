@@ -334,13 +334,13 @@ export function getUserDevices(db, userId) {
 // Subscriptions & Library
 export function getUserSubscriptions(db, userId) {
   return db.prepare(`
-    SELECT s.podcast_url, p.id, p.title, p.description, p.image_url, p.author, p.link, p.last_fetched_at,
+    SELECT s.podcast_url, p.id, COALESCE(p.title, s.podcast_url) as title, p.description, p.image_url, p.author, p.link, COALESCE(p.last_fetched_at, 0) as last_fetched_at,
            COALESCE(s.is_favorite, 0) as is_favorite,
            COALESCE(NULLIF(stats.latest_pub_date, 0), p.last_fetched_at, 0) as latest_pub_date,
            COALESCE(stats.total_episodes, 0) as total_episodes,
            MAX(0, COALESCE(stats.total_episodes, 0) - COALESCE(played.played_count, 0)) as unplayed_episodes
     FROM subscriptions s
-    JOIN podcasts p ON p.url = s.podcast_url
+    LEFT JOIN podcasts p ON p.url = s.podcast_url
     LEFT JOIN (
       SELECT podcast_id, COUNT(*) as total_episodes, MAX(pub_date) as latest_pub_date
       FROM episodes
@@ -353,7 +353,7 @@ export function getUserSubscriptions(db, userId) {
       GROUP BY podcast_url
     ) played ON played.podcast_url = s.podcast_url
     WHERE s.user_id = ? AND s.is_active = 1
-    ORDER BY p.title COLLATE NOCASE ASC
+    ORDER BY COALESCE(p.title, s.podcast_url) COLLATE NOCASE ASC
   `).all(userId, userId);
 }
 
@@ -447,7 +447,7 @@ export function getSubscriptionDeltas(db, userId, sinceTimestamp) {
 }
 
 // Podcasts & Episodes
-export function upsertPodcast(db, { url, title, description, imageUrl, author, link }) {
+export function upsertPodcast(db, { url, title, description = null, imageUrl = null, author = null, link = null }) {
   const now = Math.floor(Date.now() / 1000);
   const existing = db.prepare('SELECT id FROM podcasts WHERE url = ?').get(url);
 
@@ -576,19 +576,17 @@ export function getInProgressEpisodes(db, userId, limit = 12) {
            es.is_played,
            COALESCE(es.is_favorite, 0) as is_favorite,
            es.updated_at as state_updated_at
-    FROM (
-      SELECT * FROM episode_states
-      WHERE user_id = ? AND position > 0 AND is_played = 0
-      ORDER BY updated_at DESC
-      LIMIT ?
-    ) es
+    FROM episode_states es
     JOIN episodes e ON (
       e.enclosure_url = es.episode_url
       OR (e.guid IS NOT NULL AND es.guid IS NOT NULL AND e.guid = es.guid)
       OR (e.guid IS NOT NULL AND e.guid = es.episode_url)
     )
     JOIN podcasts p ON p.id = e.podcast_id
+    JOIN subscriptions s ON s.podcast_url = p.url AND s.user_id = es.user_id AND s.is_active = 1
+    WHERE es.user_id = ? AND es.position > 0 AND es.is_played = 0
     ORDER BY es.updated_at DESC
+    LIMIT ?
   `).all(userId, limit);
 }
 
@@ -607,6 +605,7 @@ export function getFavoriteEpisodes(db, userId, limit = 50) {
       OR (e.guid IS NOT NULL AND e.guid = es.episode_url)
     )
     JOIN podcasts p ON p.id = e.podcast_id
+    JOIN subscriptions s ON s.podcast_url = p.url AND s.user_id = es.user_id AND s.is_active = 1
     WHERE es.user_id = ? AND es.is_favorite = 1
     ORDER BY es.updated_at DESC
     LIMIT ?

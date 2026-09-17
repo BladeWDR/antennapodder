@@ -199,6 +199,11 @@
     formChangePassword: document.getElementById('form-change-password'),
     inputOldPass: document.getElementById('input-old-pass'),
     inputNewPass: document.getElementById('input-new-pass'),
+    inputImportOpml: document.getElementById('input-import-opml'),
+    labelImportOpml: document.getElementById('label-import-opml'),
+    importOpmlStatus: document.getElementById('import-opml-status'),
+    inputModalImportOpml: document.getElementById('input-modal-import-opml'),
+    labelModalImportOpml: document.getElementById('label-modal-import-opml'),
 
     // Login Modal
     modalLogin: document.getElementById('modal-login'),
@@ -1627,6 +1632,77 @@
       showToast('Error: ' + err.message, true);
     }
   });
+
+  // OPML File Import Handler
+  async function handleOpmlFileImport(file, statusEl = null) {
+    if (!file) return;
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--theme-muted)';
+      statusEl.textContent = `Reading ${file.name}...`;
+    }
+    showToast(`Importing OPML (${file.name})...`);
+
+    try {
+      const xmlText = await file.text();
+      const res = await fetch('/api/library/import.opml', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/xml' },
+        body: xmlText
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const msg = data.error || 'Failed to import OPML';
+        if (statusEl) {
+          statusEl.style.color = 'var(--ctp-red)';
+          statusEl.textContent = msg;
+        }
+        showToast(msg, true);
+        return;
+      }
+
+      const msg = data.message || `Imported ${data.imported} podcast subscription(s).`;
+      if (statusEl) {
+        statusEl.style.color = 'var(--ctp-green)';
+        statusEl.textContent = msg;
+      }
+      showToast(msg);
+
+      if (el.modalAddPodcast && el.modalAddPodcast.classList.contains('active')) {
+        el.modalAddPodcast.classList.remove('active');
+      }
+
+      loadLibrary();
+    } catch (err) {
+      const msg = 'Error importing OPML: ' + err.message;
+      if (statusEl) {
+        statusEl.style.color = 'var(--ctp-red)';
+        statusEl.textContent = msg;
+      }
+      showToast(msg, true);
+    }
+  }
+
+  if (el.inputImportOpml) {
+    el.inputImportOpml.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        await handleOpmlFileImport(file, el.importOpmlStatus);
+        e.target.value = '';
+      }
+    });
+  }
+
+  if (el.inputModalImportOpml) {
+    el.inputModalImportOpml.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        await handleOpmlFileImport(file);
+        e.target.value = '';
+      }
+    });
+  }
 
   // Subscribe / Add Feed Logic
   el.formAddFeed.addEventListener('submit', async (e) => {

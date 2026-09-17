@@ -499,3 +499,65 @@ ${outlines}
 </opml>
 `;
 }
+
+export function parseOpml(xmlText) {
+  if (!xmlText || typeof xmlText !== 'string') return [];
+  const feeds = [];
+
+  try {
+    const parsed = parser.parse(xmlText);
+    function traverse(node) {
+      if (!node) return;
+      if (Array.isArray(node)) {
+        for (const item of node) traverse(item);
+        return;
+      }
+      if (typeof node === 'object') {
+        const xmlUrl = node['@_xmlUrl'] || node['@_xmlurl'] || node['@_url'];
+        if (xmlUrl && typeof xmlUrl === 'string' && xmlUrl.trim()) {
+          const title = node['@_text'] || node['@_title'] || '';
+          feeds.push({
+            url: xmlUrl.trim(),
+            title: title ? decodeHtmlEntities(String(title).trim()) : ''
+          });
+        }
+        for (const key of Object.keys(node)) {
+          if (typeof node[key] === 'object') {
+            traverse(node[key]);
+          }
+        }
+      }
+    }
+    traverse(parsed);
+  } catch (e) {
+    // Parser error, fallback to regex below
+  }
+
+  // Regex fallback in case of slightly malformed XML
+  if (feeds.length === 0) {
+    const outlineRegex = /<outline\b([^>]+)>/gi;
+    let match;
+    while ((match = outlineRegex.exec(xmlText)) !== null) {
+      const attrs = match[1];
+      const urlMatch = attrs.match(/\b(?:xmlUrl|xmlurl|url)=["']([^"']+)["']/i);
+      if (urlMatch && urlMatch[1]) {
+        const titleMatch = attrs.match(/\b(?:text|title)=["']([^"']+)["']/i);
+        const url = urlMatch[1].trim();
+        const title = titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : '';
+        feeds.push({ url, title });
+      }
+    }
+  }
+
+  // Deduplicate by URL
+  const seen = new Set();
+  const uniqueFeeds = [];
+  for (const feed of feeds) {
+    if (!seen.has(feed.url)) {
+      seen.add(feed.url);
+      uniqueFeeds.push(feed);
+    }
+  }
+  return uniqueFeeds;
+}
+

@@ -183,4 +183,33 @@ test('In-progress episode sync and Nextcloud form-urlencoded actions support', a
   const inProgAfterData = await inProgAfterRes.json();
   assert.equal(inProgAfterData.episodes.length, 1);
   assert.equal(inProgAfterData.episodes[0].guid, 'guid-ep-2');
+
+  // 6. Unsubscribe from podcast -> in-progress list should exclude its episodes
+  const unsubRes = await fetch(`${baseUrl}/api/library/unsubscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+    body: JSON.stringify({ url: `${baseUrl}/mock-feed.xml` })
+  });
+  assert.equal(unsubRes.status, 200);
+
+  const inProgAfterUnsubRes = await fetch(`${baseUrl}/api/episodes/in-progress`, {
+    headers: { 'Cookie': cookie }
+  });
+  const inProgAfterUnsubData = await inProgAfterUnsubRes.json();
+  assert.equal(inProgAfterUnsubData.episodes.length, 0, 'In-progress episodes from unsubscribed podcast are removed');
+
+  // 7. Resubscribing brings active in-progress episodes back
+  const resubRes = await fetch(`${baseUrl}/api/library/subscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+    body: JSON.stringify({ url: `${baseUrl}/mock-feed.xml` })
+  });
+  assert.equal(resubRes.status, 200);
+
+  const inProgAfterResubRes = await fetch(`${baseUrl}/api/episodes/in-progress`, {
+    headers: { 'Cookie': cookie }
+  });
+  const inProgAfterResubData = await inProgAfterResubRes.json();
+  assert.equal(inProgAfterResubData.episodes.length, 1);
+  assert.equal(inProgAfterResubData.episodes[0].guid, 'guid-ep-2');
 });
