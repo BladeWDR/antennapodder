@@ -173,6 +173,7 @@ body {
   cursor: pointer;
   transition: all 0.15s ease-in-out;
   user-select: none;
+  text-decoration: none;
 }
 
 .btn-sm {
