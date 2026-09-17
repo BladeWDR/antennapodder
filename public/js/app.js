@@ -173,6 +173,21 @@
     btnSearchPodcast: document.getElementById('btn-search-podcast'),
     searchResults: document.getElementById('search-results'),
 
+    // Episode Details Modal
+    modalEpisodeDetails: document.getElementById('modal-episode-details'),
+    btnCloseEpisodeDetails: document.getElementById('btn-close-episode-details'),
+    episodeDetailArt: document.getElementById('episode-detail-art'),
+    episodeDetailNumberBadge: document.getElementById('episode-detail-number-badge'),
+    episodeDetailPodcast: document.getElementById('episode-detail-podcast'),
+    episodeDetailTitle: document.getElementById('episode-detail-title'),
+    episodeDetailDate: document.getElementById('episode-detail-date'),
+    episodeDetailDuration: document.getElementById('episode-detail-duration'),
+    episodeDetailStatusBadge: document.getElementById('episode-detail-status-badge'),
+    btnEpisodeDetailPlay: document.getElementById('btn-episode-detail-play'),
+    episodeDetailPlayIcon: document.getElementById('episode-detail-play-icon'),
+    btnEpisodeDetailPlayText: document.getElementById('btn-episode-detail-play-text'),
+    episodeDetailNotes: document.getElementById('episode-detail-notes'),
+
     // Settings
     formPlaybackSettings: document.getElementById('form-playback-settings'),
     settingSkipBack: document.getElementById('setting-skip-back'),
@@ -770,6 +785,9 @@
           ` : ''}
         </div>
         <div class="episode-actions">
+          <button class="btn-icon btn-episode-info" title="Episode Info" aria-label="Episode Info">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          </button>
           <button class="btn-icon btn-toggle-favorite ${ep.is_favorite ? 'active' : ''}" title="${ep.is_favorite ? 'Remove Favorite' : 'Favorite Episode'}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="${ep.is_favorite ? 'var(--ctp-yellow)' : 'none'}" stroke="${ep.is_favorite ? 'var(--ctp-yellow)' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
@@ -825,6 +843,15 @@
         }
       });
 
+      // Episode info button click
+      const infoBtn = item.querySelector('.btn-episode-info');
+      if (infoBtn) {
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showEpisodeDetailsModal(ep, state.currentPodcast, state.currentEpisodes);
+        });
+      }
+
       // Toggle favorite click
       const favBtn = item.querySelector('.btn-toggle-favorite');
       favBtn.addEventListener('click', async (e) => {
@@ -879,6 +906,127 @@
       }
     } catch (e) {
       showToast('Error: ' + e.message, true);
+    }
+  }
+
+  // Episode Details Modal logic
+  function formatEpisodeNumber(ep, allEpisodes) {
+    if (ep.episode_number) {
+      if (ep.season) {
+        return `Season ${ep.season}, Episode ${ep.episode_number}`;
+      }
+      return `Episode ${ep.episode_number}`;
+    }
+
+    // Try extracting from title: e.g. "Episode 42", "Ep 42", "Ep. 42", "#42"
+    if (ep.title) {
+      const match = ep.title.match(/(?:(?:Season\s*(\d+)\s*[,:]?\s*)?(?:Episode|Ep\.?|#)\s*(\d+))/i);
+      if (match) {
+        const season = match[1];
+        const num = match[2];
+        return season ? `Season ${season}, Episode ${num}` : `Episode ${num}`;
+      }
+    }
+
+    // Fallback: chronological episode position in podcast
+    if (Array.isArray(allEpisodes) && allEpisodes.length > 0) {
+      const sorted = [...allEpisodes].sort((a, b) => (a.pub_date || 0) - (b.pub_date || 0));
+      const idx = sorted.findIndex(e => e.id === ep.id);
+      if (idx !== -1) {
+        return `Episode ${idx + 1}`;
+      }
+    }
+
+    return 'Episode Info';
+  }
+
+  function formatShowNotes(rawHtml) {
+    if (!rawHtml || !rawHtml.trim()) {
+      return '<em style="color: var(--theme-muted);">No show notes provided for this episode.</em>';
+    }
+
+    const hasHtmlTags = /<[a-z][\s\S]*>/i.test(rawHtml);
+    let container = document.createElement('div');
+    if (hasHtmlTags) {
+      container.innerHTML = rawHtml;
+    } else {
+      const escaped = escapeHtml(rawHtml);
+      const withLinks = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+      container.innerHTML = withLinks.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+    }
+
+    container.querySelectorAll('a').forEach(a => {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    });
+
+    return container.innerHTML;
+  }
+
+  function showEpisodeDetailsModal(ep, podcast, allEpisodes) {
+    if (!ep) return;
+    state.selectedDetailEpisode = ep;
+
+    if (el.episodeDetailArt) {
+      el.episodeDetailArt.src = ep.image_url || podcast?.image_url || '';
+    }
+
+    if (el.episodeDetailNumberBadge) {
+      el.episodeDetailNumberBadge.textContent = formatEpisodeNumber(ep, allEpisodes);
+    }
+
+    if (el.episodeDetailPodcast) {
+      el.episodeDetailPodcast.textContent = podcast?.title ? decodeHtml(podcast.title) : '';
+    }
+
+    if (el.episodeDetailTitle) {
+      el.episodeDetailTitle.textContent = decodeHtml(ep.title || 'Untitled Episode');
+    }
+
+    if (el.episodeDetailDate) {
+      el.episodeDetailDate.textContent = formatDate(ep.pub_date);
+    }
+
+    if (el.episodeDetailDuration) {
+      el.episodeDetailDuration.textContent = formatTime(ep.duration || ep.total_duration);
+    }
+
+    if (el.episodeDetailStatusBadge) {
+      if (ep.is_played) {
+        el.episodeDetailStatusBadge.innerHTML = '<span style="color: var(--ctp-green); font-weight: 600;">✓ Played</span>';
+      } else if (ep.position > 0 && ep.total_duration > 0) {
+        const pct = Math.min(100, Math.round((ep.position / ep.total_duration) * 100));
+        el.episodeDetailStatusBadge.innerHTML = `<span style="color: var(--theme-accent); font-weight: 600;">${pct}% played</span>`;
+      } else {
+        el.episodeDetailStatusBadge.innerHTML = '<span style="color: var(--theme-muted);">Unplayed</span>';
+      }
+    }
+
+    updateEpisodeDetailPlayBtn(ep);
+
+    if (el.episodeDetailNotes) {
+      el.episodeDetailNotes.innerHTML = formatShowNotes(ep.description);
+      el.episodeDetailNotes.scrollTop = 0;
+    }
+
+    if (el.modalEpisodeDetails) {
+      el.modalEpisodeDetails.classList.add('active');
+    }
+  }
+
+  function updateEpisodeDetailPlayBtn(ep) {
+    if (!el.btnEpisodeDetailPlay || !ep) return;
+    const isCurrentActive = state.activeEpisode && state.activeEpisode.id === ep.id;
+    if (isCurrentActive && state.isPlaying) {
+      if (el.btnEpisodeDetailPlayText) el.btnEpisodeDetailPlayText.textContent = 'Pause Episode';
+      if (el.episodeDetailPlayIcon) {
+        el.episodeDetailPlayIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+      }
+    } else {
+      if (el.btnEpisodeDetailPlayText) el.btnEpisodeDetailPlayText.textContent = isCurrentActive ? 'Resume Episode' : 'Play Episode';
+      if (el.episodeDetailPlayIcon) {
+        el.episodeDetailPlayIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+      }
     }
   }
 
@@ -1068,6 +1216,9 @@
       el.modalIconPause.style.display = 'none';
       if (el.videoFsIconPlay) el.videoFsIconPlay.style.display = 'block';
       if (el.videoFsIconPause) el.videoFsIconPause.style.display = 'none';
+    }
+    if (state.selectedDetailEpisode) {
+      updateEpisodeDetailPlayBtn(state.selectedDetailEpisode);
     }
   }
 
@@ -1914,6 +2065,38 @@
   el.btnEmptyAdd.addEventListener('click', () => el.modalAddPodcast.classList.add('active'));
   el.btnCloseAdd.addEventListener('click', () => el.modalAddPodcast.classList.remove('active'));
 
+  // Episode Details Modal Listeners
+  if (el.btnCloseEpisodeDetails) {
+    el.btnCloseEpisodeDetails.addEventListener('click', () => {
+      if (el.modalEpisodeDetails) el.modalEpisodeDetails.classList.remove('active');
+    });
+  }
+
+  if (el.btnEpisodeDetailPlay) {
+    el.btnEpisodeDetailPlay.addEventListener('click', () => {
+      const ep = state.selectedDetailEpisode;
+      if (!ep) return;
+      const isCurrentActive = state.activeEpisode && state.activeEpisode.id === ep.id;
+      if (isCurrentActive) {
+        togglePlayPause();
+      } else {
+        playEpisode(ep, state.currentPodcast);
+      }
+      updateEpisodeDetailPlayBtn(ep);
+    });
+  }
+
+  // Close modals when clicking overlay background
+  [el.modalNowPlaying, el.modalAddPodcast, el.modalEpisodeDetails].forEach(modal => {
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('active');
+        }
+      });
+    }
+  });
+
   // Auth Login Form
   el.formLogin.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1970,6 +2153,7 @@
     } else if (e.code === 'Escape') {
       el.modalNowPlaying.classList.remove('active');
       el.modalAddPodcast.classList.remove('active');
+      if (el.modalEpisodeDetails) el.modalEpisodeDetails.classList.remove('active');
     }
   });
 

@@ -1582,3 +1582,52 @@ video:-webkit-full-screen {
     justify-content: center;
   }
 }
+
+/* Episode Details Modal & Notes */
+.btn-episode-info:hover {
+  color: var(--ctp-blue);
+  border-color: var(--ctp-blue);
+}
+
+.episode-notes-body {
+  font-size: 0.875rem;
+  color: var(--ctp-subtext1);
+  line-height: 1.65;
+  max-height: 380px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+.episode-notes-body a {
+  color: var(--theme-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.episode-notes-body a:hover {
+  color: var(--theme-text);
+}
+
+.episode-notes-body p {
+  margin: 0 0 0.75rem 0;
+}
+
+.episode-notes-body p:last-child {
+  margin-bottom: 0;
+}
+
+.episode-notes-body ul, .episode-notes-body ol {
+  margin: 0.5rem 0 0.75rem 1.25rem;
+}
+
+.episode-notes-body li {
+  margin-bottom: 0.25rem;
+}
+
+.episode-notes-body blockquote {
+  border-left: 3px solid var(--theme-border);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: var(--theme-muted);
+}
+

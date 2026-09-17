@@ -138,6 +138,8 @@ test('RSS feed parser', () => {
         <pubDate>Mon, 15 Sep 2026 12:00:00 GMT</pubDate>
         <enclosure url="https://science.example.com/ep1.mp3" length="12345678" type="audio/mpeg"/>
         <itunes:duration>45:30</itunes:duration>
+        <itunes:episode>1</itunes:episode>
+        <itunes:season>2</itunes:season>
       </item>
       <item>
         <title>Episode 2: Deep Space Video</title>
@@ -146,6 +148,7 @@ test('RSS feed parser', () => {
         <pubDate>Tue, 16 Sep 2026 12:00:00 GMT</pubDate>
         <enclosure url="https://science.example.com/ep2.mp4" length="98765432" type="video/mp4"/>
         <itunes:duration>01:15:00</itunes:duration>
+        <itunes:episode>2</itunes:episode>
       </item>
     </channel>
   </rss>`;
@@ -160,11 +163,14 @@ test('RSS feed parser', () => {
   assert.equal(result.episodes[0].title, 'Episode 1: Quantum Wonders');
   assert.equal(result.episodes[0].enclosureType, 'audio/mpeg');
   assert.equal(result.episodes[0].duration, 45 * 60 + 30);
+  assert.equal(result.episodes[0].episodeNumber, '1');
+  assert.equal(result.episodes[0].season, '2');
 
   // Video episode
   assert.equal(result.episodes[1].title, 'Episode 2: Deep Space Video');
   assert.equal(result.episodes[1].enclosureType, 'video/mp4');
   assert.equal(result.episodes[1].duration, 3600 + 15 * 60);
+  assert.equal(result.episodes[1].episodeNumber, '2');
 
   // HTML entities and character references decoding test
   const sampleWithEntities = `<?xml version="1.0" encoding="UTF-8"?>

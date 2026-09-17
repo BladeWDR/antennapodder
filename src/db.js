@@ -115,6 +115,8 @@ export function getDatabase(dataDir = null) {
       description TEXT,
       image_url TEXT,
       link TEXT,
+      episode_number TEXT,
+      season TEXT,
       UNIQUE(podcast_id, guid),
       FOREIGN KEY(podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
     );
@@ -158,7 +160,7 @@ export function getDatabase(dataDir = null) {
     CREATE INDEX IF NOT EXISTS idx_episode_states_inprogress ON episode_states(user_id, is_played, position, updated_at DESC);
   `);
 
-  // Migrations for favorites
+  // Migrations for favorites & episode metadata
   try {
     db.exec('ALTER TABLE subscriptions ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0');
   } catch {}
@@ -167,6 +169,12 @@ export function getDatabase(dataDir = null) {
   } catch {}
   try {
     db.exec('ALTER TABLE episode_actions ADD COLUMN is_favorite INTEGER DEFAULT 0');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE episodes ADD COLUMN episode_number TEXT');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE episodes ADD COLUMN season TEXT');
   } catch {}
 
   // Decode legacy HTML entities stored in existing databases
@@ -475,8 +483,12 @@ export function upsertEpisode(db, podcastId, episode) {
     pubDate = 0,
     description = null,
     imageUrl = null,
-    link = null
+    link = null,
+    episodeNumber = null,
+    episode_number = null,
+    season = null
   } = episode;
+  const epNum = episodeNumber || episode_number || null;
   const existing = db.prepare('SELECT id FROM episodes WHERE podcast_id = ? AND guid = ?').get(podcastId, guid);
 
   if (existing) {
@@ -490,15 +502,17 @@ export function upsertEpisode(db, podcastId, episode) {
           pub_date = ?,
           description = ?,
           image_url = COALESCE(?, image_url),
-          link = ?
+          link = ?,
+          episode_number = COALESCE(?, episode_number),
+          season = COALESCE(?, season)
       WHERE id = ?
-    `).run(title, enclosureUrl, enclosureType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, existing.id);
+    `).run(title, enclosureUrl, enclosureType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, epNum, season, existing.id);
     return existing.id;
   } else {
     const res = db.prepare(`
-      INSERT INTO episodes (podcast_id, guid, title, enclosure_url, enclosure_type, enclosure_length, duration, pub_date, description, image_url, link)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(podcastId, guid, title, enclosureUrl, enclosureType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link);
+      INSERT INTO episodes (podcast_id, guid, title, enclosure_url, enclosure_type, enclosure_length, duration, pub_date, description, image_url, link, episode_number, season)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(podcastId, guid, title, enclosureUrl, enclosureType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, epNum, season);
     return Number(res.lastInsertRowid);
   }
 }

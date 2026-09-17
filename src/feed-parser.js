@@ -333,6 +333,8 @@ export function parsePodcastFeed(xmlContent, feedUrl) {
       const epPubDate = parsePubDate(extractText(item.pubDate));
       const epImage = extractImage(item, imageUrl);
       const epLink = extractText(item.link) || link;
+      const epNumber = extractText(item['itunes:episode']) || extractText(item['podcast:episode']) || extractText(item.episode) || null;
+      const epSeason = extractText(item['itunes:season']) || extractText(item['podcast:season']) || extractText(item.season) || null;
 
       episodes.push({
         guid,
@@ -344,7 +346,9 @@ export function parsePodcastFeed(xmlContent, feedUrl) {
         pubDate: epPubDate,
         description: epDesc,
         imageUrl: epImage,
-        link: epLink
+        link: epLink,
+        episodeNumber: epNumber,
+        season: epSeason
       });
     }
 
@@ -409,6 +413,8 @@ export function parsePodcastFeed(xmlContent, feedUrl) {
       const epDesc = extractText(entry.content) || extractText(entry.summary) || '';
       const epPubDate = parsePubDate(extractText(entry.published) || extractText(entry.updated));
       const epImage = extractImage(entry, imageUrl);
+      const epNumber = extractText(entry['itunes:episode']) || extractText(entry['podcast:episode']) || extractText(entry.episode) || null;
+      const epSeason = extractText(entry['itunes:season']) || extractText(entry['podcast:season']) || extractText(entry.season) || null;
 
       episodes.push({
         guid,
@@ -420,7 +426,9 @@ export function parsePodcastFeed(xmlContent, feedUrl) {
         pubDate: epPubDate,
         description: epDesc,
         imageUrl: epImage,
-        link
+        link,
+        episodeNumber: epNumber,
+        season: epSeason
       });
     }
 

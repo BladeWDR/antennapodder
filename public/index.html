@@ -497,6 +497,48 @@
     </div>
   </div>
 
+  <!-- Modal: Episode Details -->
+  <div id="modal-episode-details" class="modal-overlay">
+    <div class="modal-card" style="max-width: 640px;">
+      <div class="modal-header">
+        <div class="modal-title">Episode Details</div>
+        <button class="btn-icon" id="btn-close-episode-details" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="text-align: left;">
+        <div style="display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1.25rem;">
+          <img id="episode-detail-art" src="" alt="Episode Artwork" style="width: 72px; height: 72px; border-radius: 8px; object-fit: cover; background-color: var(--ctp-surface1); flex-shrink: 0;">
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem;">
+              <span id="episode-detail-number-badge" style="font-size: 0.75rem; font-weight: 700; color: var(--theme-accent); background: var(--ctp-surface1); padding: 0.2rem 0.55rem; border-radius: 6px;">Episode</span>
+              <span id="episode-detail-podcast" style="font-size: 0.8rem; color: var(--theme-muted); font-weight: 600;">Podcast Name</span>
+            </div>
+            <h3 id="episode-detail-title" style="font-size: 1.15rem; font-weight: 700; line-height: 1.35; margin: 0 0 0.4rem 0; word-break: break-word;">Episode Title</h3>
+            <div id="episode-detail-meta" style="font-size: 0.8rem; color: var(--theme-muted); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+              <span id="episode-detail-date">Date</span>
+              <span>&bull;</span>
+              <span id="episode-detail-duration">Duration</span>
+              <span id="episode-detail-status-badge"></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem;">
+          <button id="btn-episode-detail-play" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; padding: 0.5rem 1rem;">
+            <svg id="episode-detail-play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span id="btn-episode-detail-play-text">Play Episode</span>
+          </button>
+        </div>
+
+        <div style="background-color: var(--ctp-surface0); padding: 1.2rem; border-radius: 10px; border: 1px solid var(--theme-border);">
+          <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0 0 0.75rem 0; color: var(--ctp-text);">Show Notes</h4>
+          <div id="episode-detail-notes" class="episode-notes-body"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Add Podcast Feed -->
   <div id="modal-add-podcast" class="modal-overlay">
     <div class="modal-card">
