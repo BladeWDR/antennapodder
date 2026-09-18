@@ -90,7 +90,10 @@ test('Podcast sorting, favorite podcasts, and favorite episodes two-way sync', a
   assert.ok(alphaPod);
   assert.ok(zetaPod);
   assert.equal(alphaPod.total_episodes, 1);
+  assert.equal(alphaPod.unplayed_episodes, 1);
   assert.equal(alphaPod.is_favorite, 0);
+  assert.equal(zetaPod.total_episodes, 1);
+  assert.equal(zetaPod.unplayed_episodes, 1);
 
   // 2. Test Podcast Favorite Toggle
   const favResult = togglePodcastFavorite(db, admin.id, pod2Id);

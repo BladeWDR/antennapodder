@@ -39,7 +39,7 @@ I am vehemently opposed to exposing this directly directly to the internet. Put 
   - Instant text search across all subscribed podcasts (filters by title, author, and description).
   - Sort subscriptions by **Most Recently Updated**, **Alphabetical (A-Z)**, or **Number of Episodes**.
   - Visible episode counts and last update dates directly on podcast cards.
-  - Filter podcasts to view All or Favorites.
+  - Filter podcasts to view All, Unplayed, or Favorites.
   - OPML import and export for fast backup, restore, and migration to and from any podcast client (AntennaPod, Pocket Casts, Apple Podcasts, gPodder, etc.).
   - Easily subscribe by RSS / Atom feed URL.
   - Integrated podcast directory search (search podcasts by name and subscribe with one click).

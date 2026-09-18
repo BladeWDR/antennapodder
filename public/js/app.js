@@ -52,6 +52,7 @@
     podcastSearchInput: document.getElementById('podcast-search-input'),
     podcastSortSelect: document.getElementById('podcast-sort-select'),
     filterPodAll: document.getElementById('filter-pod-all'),
+    filterPodUnplayed: document.getElementById('filter-pod-unplayed'),
     filterPodFavs: document.getElementById('filter-pod-favs'),
     continueSection: document.getElementById('continue-listening-section'),
     continueGrid: document.getElementById('continue-listening-grid'),
@@ -505,9 +506,11 @@
       }
     }
 
-    // Filter favorites
+    // Filter favorites or unplayed
     if (state.podcastFilter === 'favs') {
       list = list.filter(p => p.is_favorite);
+    } else if (state.podcastFilter === 'unplayed') {
+      list = list.filter(p => (Number(p.unplayed_episodes) || 0) > 0);
     }
 
     // Sort list
@@ -543,6 +546,11 @@
         if (el.libraryEmptyDesc) el.libraryEmptyDesc.textContent = 'Check for typos or try searching by author or keyword.';
         if (el.btnEmptyAdd) el.btnEmptyAdd.style.display = 'none';
         if (el.btnEmptyClearSearch) el.btnEmptyClearSearch.style.display = 'inline-block';
+      } else if (state.podcastFilter === 'unplayed') {
+        if (el.libraryEmptyTitle) el.libraryEmptyTitle.textContent = 'No unplayed podcasts';
+        if (el.libraryEmptyDesc) el.libraryEmptyDesc.textContent = 'All caught up! None of your subscribed podcasts have unplayed episodes.';
+        if (el.btnEmptyAdd) el.btnEmptyAdd.style.display = 'none';
+        if (el.btnEmptyClearSearch) el.btnEmptyClearSearch.style.display = 'none';
       } else if (state.podcastFilter === 'favs') {
         if (el.libraryEmptyTitle) el.libraryEmptyTitle.textContent = 'No favorite podcasts yet';
         if (el.libraryEmptyDesc) el.libraryEmptyDesc.textContent = 'Click the star icon on any podcast card to mark it as a favorite.';
@@ -2013,23 +2021,23 @@
     el.podcastSortSelect.addEventListener('input', handleSortChange);
   }
 
-  if (el.filterPodAll) {
-    el.filterPodAll.addEventListener('click', () => {
-      state.podcastFilter = 'all';
-      el.filterPodAll.classList.add('active');
-      el.filterPodFavs.classList.remove('active');
-      renderLibrary();
-    });
-  }
+  const podFilterButtons = [
+    { btn: el.filterPodAll, filter: 'all' },
+    { btn: el.filterPodUnplayed, filter: 'unplayed' },
+    { btn: el.filterPodFavs, filter: 'favs' }
+  ];
 
-  if (el.filterPodFavs) {
-    el.filterPodFavs.addEventListener('click', () => {
-      state.podcastFilter = 'favs';
-      el.filterPodFavs.classList.add('active');
-      el.filterPodAll.classList.remove('active');
-      renderLibrary();
-    });
-  }
+  podFilterButtons.forEach(({ btn, filter }) => {
+    if (btn) {
+      btn.addEventListener('click', () => {
+        state.podcastFilter = filter;
+        podFilterButtons.forEach(b => {
+          if (b.btn) b.btn.classList.toggle('active', b.filter === filter);
+        });
+        renderLibrary();
+      });
+    }
+  });
 
   // Podcast Detail Favorite Button
   if (el.btnPodcastFavorite) {
