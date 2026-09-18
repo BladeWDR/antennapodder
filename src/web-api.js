@@ -11,6 +11,7 @@ import {
   upsertPodcast,
   upsertEpisode,
   getPodcastById,
+  podcastExists,
   getPodcastByUrl,
   getEpisodeById,
   getInProgressEpisodes,
@@ -292,7 +293,14 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
   const podcastMatch = pathname.match(/^\/api\/podcasts\/(\d+)$/);
   if (podcastMatch && method === 'GET') {
     const podcastId = parseInt(podcastMatch[1], 10);
-    const podcast = getPodcastById(db, podcastId, authUser.id);
+    const limitParam = parseInt(query.get('limit'), 10);
+    const offsetParam = parseInt(query.get('offset'), 10);
+    const options = {};
+    if (Number.isInteger(limitParam) && limitParam > 0) {
+      options.limit = limitParam;
+      options.offset = Number.isInteger(offsetParam) && offsetParam > 0 ? offsetParam : 0;
+    }
+    const podcast = getPodcastById(db, podcastId, authUser.id, options);
     if (!podcast) {
       sendError(404, 'Podcast not found');
       return true;
@@ -316,8 +324,7 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
   const podcastMarkAllMatch = pathname.match(/^\/api\/podcasts\/(\d+)\/mark-all-played$/);
   if (podcastMarkAllMatch && method === 'POST') {
     const podcastId = parseInt(podcastMarkAllMatch[1], 10);
-    const podcast = getPodcastById(db, podcastId, authUser.id);
-    if (!podcast) {
+    if (!podcastExists(db, podcastId)) {
       sendError(404, 'Podcast not found');
       return true;
     }

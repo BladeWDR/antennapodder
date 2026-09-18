@@ -158,6 +158,7 @@ export function getDatabase(dataDir = null) {
     CREATE INDEX IF NOT EXISTS idx_episode_states_user_pod ON episode_states(user_id, podcast_url);
     CREATE INDEX IF NOT EXISTS idx_episode_states_user_played ON episode_states(user_id, is_played, podcast_url);
     CREATE INDEX IF NOT EXISTS idx_episode_states_inprogress ON episode_states(user_id, is_played, position, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_episode_states_user_guid ON episode_states(user_id, guid);
   `);
 
   // Migrations for favorites & episode metadata
@@ -517,7 +518,9 @@ export function upsertEpisode(db, podcastId, episode) {
   }
 }
 
-export function getPodcastById(db, podcastId, userId) {
+export function getPodcastById(db, podcastId, userId, options = {}) {
+  const { limit, offset = 0 } = options;
+
   const podcast = db.prepare('SELECT * FROM podcasts WHERE id = ?').get(podcastId);
   if (!podcast) return null;
 
@@ -525,10 +528,13 @@ export function getPodcastById(db, podcastId, userId) {
   podcast.is_subscribed = sub ? Boolean(sub.is_active) : false;
   podcast.is_favorite = sub ? Boolean(sub.is_favorite) : false;
 
-  const episodes = db.prepare(`
-    SELECT e.*, 
-           COALESCE(es.position, 0) as position, 
-           COALESCE(es.total, e.duration) as total_duration, 
+  const totalRow = db.prepare('SELECT COUNT(*) as count FROM episodes WHERE podcast_id = ?').get(podcastId);
+  podcast.total_episodes = totalRow.count;
+
+  let query = `
+    SELECT e.*,
+           COALESCE(es.position, 0) as position,
+           COALESCE(es.total, e.duration) as total_duration,
            COALESCE(es.is_played, 0) as is_played,
            COALESCE(es.is_favorite, 0) as is_favorite,
            es.updated_at as state_updated_at
@@ -540,10 +546,19 @@ export function getPodcastById(db, podcastId, userId) {
     )
     WHERE e.podcast_id = ?
     ORDER BY e.pub_date DESC
-  `).all(userId, podcastId);
+  `;
+  const params = [userId, podcastId];
+  if (typeof limit === 'number') {
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+  }
 
-  podcast.episodes = episodes;
+  podcast.episodes = db.prepare(query).all(...params);
   return podcast;
+}
+
+export function podcastExists(db, podcastId) {
+  return Boolean(db.prepare('SELECT 1 FROM podcasts WHERE id = ?').get(podcastId));
 }
 
 export function getPodcastByUrl(db, url) {
