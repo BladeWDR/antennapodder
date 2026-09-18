@@ -634,8 +634,9 @@
       }
       return;
     }
+    const INITIAL_EPISODE_PAGE_SIZE = 60;
     try {
-      const res = await fetch(`/api/podcasts/${podcastId}`);
+      const res = await fetch(`/api/podcasts/${podcastId}?limit=${INITIAL_EPISODE_PAGE_SIZE}`);
       if (res.status === 401) {
         el.modalLogin.classList.add('active');
         return;
@@ -669,8 +670,28 @@
 
       renderEpisodesList();
       switchView('podcast', false);
+
+      const loadedCount = state.currentEpisodes.length;
+      if (data.podcast.total_episodes > loadedCount) {
+        loadRemainingEpisodes(podcastId, loadedCount, data.podcast.total_episodes - loadedCount);
+      }
     } catch (e) {
       showToast('Failed to load podcast: ' + e.message, true);
+    }
+  }
+
+  async function loadRemainingEpisodes(podcastId, offset, remaining) {
+    try {
+      const res = await fetch(`/api/podcasts/${podcastId}?limit=${remaining}&offset=${offset}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.podcast || !state.currentPodcast || state.currentPodcast.id !== podcastId) return;
+
+      state.currentEpisodes = state.currentEpisodes.concat(data.podcast.episodes || []);
+      state.currentPodcast.episodes = state.currentEpisodes;
+      renderEpisodesList();
+    } catch (e) {
+      // Non-fatal: the initial page of episodes is already visible.
     }
   }
 
