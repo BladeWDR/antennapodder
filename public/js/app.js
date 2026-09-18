@@ -1978,7 +1978,12 @@
 
   el.filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      state.filter = btn.dataset.filter;
+      const targetFilter = btn.dataset.filter;
+      if (state.filter === targetFilter && targetFilter !== 'all') {
+        state.filter = 'all';
+      } else {
+        state.filter = targetFilter;
+      }
       updateFilterButtons();
       renderEpisodesList();
     });
@@ -2030,9 +2035,13 @@
   podFilterButtons.forEach(({ btn, filter }) => {
     if (btn) {
       btn.addEventListener('click', () => {
-        state.podcastFilter = filter;
+        if (state.podcastFilter === filter && filter !== 'all') {
+          state.podcastFilter = 'all';
+        } else {
+          state.podcastFilter = filter;
+        }
         podFilterButtons.forEach(b => {
-          if (b.btn) b.btn.classList.toggle('active', b.filter === filter);
+          if (b.btn) b.btn.classList.toggle('active', b.filter === state.podcastFilter);
         });
         renderLibrary();
       });
