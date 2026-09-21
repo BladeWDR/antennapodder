@@ -198,6 +198,48 @@ export function getDatabase(dataDir = null) {
     }
   } catch {}
 
+  // Reconcile any episode states where is_played was wiped by non-playback actions (e.g. delete after playback)
+  try {
+    const wipedEpisodes = db.prepare(`
+      WITH latest_playback AS (
+        SELECT 
+          ea.user_id,
+          ea.episode_url,
+          ea.guid,
+          ea.action,
+          ea.position,
+          ea.total,
+          ROW_NUMBER() OVER (
+            PARTITION BY ea.user_id, COALESCE(ea.guid, ea.episode_url)
+            ORDER BY ea.id DESC
+          ) as rn
+        FROM episode_actions ea
+        WHERE ea.action IN ('play', 'pause', 'new')
+      )
+      SELECT es.user_id, es.episode_url, lp.position as last_pos, lp.total as last_total
+      FROM episode_states es
+      JOIN latest_playback lp ON lp.user_id = es.user_id AND (
+        lp.episode_url = es.episode_url
+        OR (lp.guid IS NOT NULL AND es.guid IS NOT NULL AND lp.guid = es.guid)
+      ) AND lp.rn = 1
+      WHERE es.is_played = 0
+        AND es.position = 0
+        AND lp.action = 'play'
+        AND lp.total > 0
+        AND lp.position >= lp.total * 0.95
+    `).all();
+
+    for (const ep of wipedEpisodes) {
+      db.prepare(`
+        UPDATE episode_states
+        SET is_played = 1,
+            position = ?,
+            total = CASE WHEN total > 0 THEN total ELSE ? END
+        WHERE user_id = ? AND episode_url = ?
+      `).run(ep.last_pos, ep.last_total, ep.user_id, ep.episode_url);
+    }
+  } catch {}
+
   // Default configuration
   const getConfigStmt = db.prepare('SELECT value FROM config WHERE key = ?');
   const setConfigStmt = db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)');
@@ -490,6 +532,8 @@ export function upsertEpisode(db, podcastId, episode) {
     season = null
   } = episode;
   const epNum = episodeNumber || episode_number || null;
+  const encUrl = enclosureUrl || episode.enclosure_url || '';
+  const encType = enclosureType || episode.enclosure_type || null;
   const existing = db.prepare('SELECT id FROM episodes WHERE podcast_id = ? AND guid = ?').get(podcastId, guid);
 
   if (existing) {
@@ -507,13 +551,13 @@ export function upsertEpisode(db, podcastId, episode) {
           episode_number = COALESCE(?, episode_number),
           season = COALESCE(?, season)
       WHERE id = ?
-    `).run(title, enclosureUrl, enclosureType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, epNum, season, existing.id);
+    `).run(title, encUrl, encType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, epNum, season, existing.id);
     return existing.id;
   } else {
     const res = db.prepare(`
       INSERT INTO episodes (podcast_id, guid, title, enclosure_url, enclosure_type, enclosure_length, duration, pub_date, description, image_url, link, episode_number, season)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(podcastId, guid, title, enclosureUrl, enclosureType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, epNum, season);
+    `).run(podcastId, guid, title, encUrl, encType, enclosureLength || 0, duration || 0, pubDate || 0, description, imageUrl, link, epNum, season);
     return Number(res.lastInsertRowid);
   }
 }
@@ -923,8 +967,8 @@ export function applyEpisodeActionsFromClient(db, userId, actions) {
       epRow = db.prepare('SELECT id, guid, enclosure_url, duration, podcast_id FROM episodes WHERE enclosure_url LIKE ? LIMIT 1').get(`${baseEpUrl}%`);
     }
 
-    let canonicalEpisodeUrl = episodeUrl || (epRow ? epRow.enclosure_url : guid);
-    let canonicalGuid = guid || (epRow ? epRow.guid : null);
+    let canonicalEpisodeUrl = episodeUrl || (epRow ? epRow.enclosure_url : (guid || null)) || null;
+    let canonicalGuid = guid || (epRow ? epRow.guid : null) || null;
     if (epRow) {
       canonicalEpisodeUrl = epRow.enclosure_url;
       if (!canonicalGuid && epRow.guid) canonicalGuid = epRow.guid;
@@ -940,13 +984,18 @@ export function applyEpisodeActionsFromClient(db, userId, actions) {
       isFavorite = 0;
     }
 
+    const isPlaybackAction = (action === 'play' || action === 'pause' || action === 'new');
     let isPlayed = 0;
-    if (action === 'play') {
+    let newPosition = position;
+    if (action === 'play' || action === 'pause') {
       if (total > 0 && position >= total * 0.95) {
         isPlayed = 1;
+      } else {
+        isPlayed = 0;
       }
     } else if (action === 'new') {
       isPlayed = 0;
+      newPosition = 0;
     }
 
     let resolvedPodcastUrl = podcastUrl;
@@ -966,7 +1015,7 @@ export function applyEpisodeActionsFromClient(db, userId, actions) {
         OR (? IS NOT NULL AND episode_url = ?)
       )
       LIMIT 1
-    `).get(userId, canonicalEpisodeUrl, canonicalGuid, canonicalGuid, canonicalGuid);
+    `).get(userId, canonicalEpisodeUrl, canonicalGuid, canonicalGuid, canonicalGuid, canonicalGuid);
 
     if (existing) {
       db.prepare(`
@@ -974,55 +1023,56 @@ export function applyEpisodeActionsFromClient(db, userId, actions) {
         SET podcast_url = ?,
             episode_url = ?,
             guid = COALESCE(?, guid),
-            position = CASE WHEN ? = 'favorite' OR ? = 'unfavorite' THEN position ELSE ? END,
+            position = CASE WHEN ? = 1 THEN ? ELSE position END,
             total = CASE WHEN ? > 0 THEN ? ELSE total END,
-            is_played = CASE WHEN ? = 'favorite' OR ? = 'unfavorite' THEN is_played ELSE ? END,
+            is_played = CASE WHEN ? = 1 THEN ? ELSE is_played END,
             is_favorite = CASE WHEN ? IS NOT NULL THEN ? ELSE is_favorite END,
-            updated_at = ?
+            updated_at = CASE WHEN ? = 1 OR ? IS NOT NULL THEN ? ELSE updated_at END
         WHERE rowid = ?
       `).run(
         resolvedPodcastUrl,
         canonicalEpisodeUrl,
         canonicalGuid,
-        action,
-        action,
-        position,
+        isPlaybackAction ? 1 : 0,
+        newPosition,
         total,
         total,
-        action,
-        action,
+        isPlaybackAction ? 1 : 0,
         isPlayed,
         isFavorite,
+        isFavorite,
+        isPlaybackAction ? 1 : 0,
         isFavorite,
         now,
         existing.rowid
       );
-    } else {
+    } else if (isPlaybackAction || isFavorite !== null) {
       db.prepare(`
         INSERT INTO episode_states (user_id, podcast_url, episode_url, guid, position, total, is_played, is_favorite, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), ?)
         ON CONFLICT(user_id, episode_url) DO UPDATE SET
           podcast_url = excluded.podcast_url,
           guid = COALESCE(excluded.guid, episode_states.guid),
-          position = CASE WHEN excluded.is_played IS NOT NULL AND ? != 'favorite' AND ? != 'unfavorite' THEN excluded.position ELSE episode_states.position END,
+          position = CASE WHEN ? = 1 THEN excluded.position ELSE episode_states.position END,
           total = CASE WHEN excluded.total > 0 THEN excluded.total ELSE episode_states.total END,
-          is_played = CASE WHEN ? != 'favorite' AND ? != 'unfavorite' THEN excluded.is_played ELSE episode_states.is_played END,
-          is_favorite = COALESCE(excluded.is_favorite, episode_states.is_favorite),
-          updated_at = excluded.updated_at
+          is_played = CASE WHEN ? = 1 THEN excluded.is_played ELSE episode_states.is_played END,
+          is_favorite = CASE WHEN ? IS NOT NULL THEN excluded.is_favorite ELSE episode_states.is_favorite END,
+          updated_at = CASE WHEN ? = 1 OR ? IS NOT NULL THEN excluded.updated_at ELSE episode_states.updated_at END
       `).run(
         userId,
         resolvedPodcastUrl,
         canonicalEpisodeUrl,
         canonicalGuid,
-        position,
+        newPosition,
         total,
         isPlayed,
         isFavorite,
         now,
-        action,
-        action,
-        action,
-        action
+        isPlaybackAction ? 1 : 0,
+        isPlaybackAction ? 1 : 0,
+        isFavorite,
+        isPlaybackAction ? 1 : 0,
+        isFavorite
       );
     }
 

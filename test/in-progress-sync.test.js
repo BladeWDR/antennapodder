@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import { getDatabase, getUserByUsername } from '../src/db.js';
+import {
+  getDatabase,
+  getUserByUsername,
+  upsertPodcast,
+  upsertEpisode,
+  applyEpisodeActionsFromClient
+} from '../src/db.js';
 import { handleGpodderRoutes } from '../src/gpodder.js';
 import { handleWebRoutes } from '../src/web-api.js';
 
@@ -213,3 +219,140 @@ test('In-progress episode sync and Nextcloud form-urlencoded actions support', a
   assert.equal(inProgAfterResubData.episodes.length, 1);
   assert.equal(inProgAfterResubData.episodes[0].guid, 'guid-ep-2');
 });
+
+test('Playback state is preserved across client download, delete, and file management actions', async () => {
+  const testDir = path.join(process.cwd(), 'data-test-delete-preservation');
+  if (fs.existsSync(testDir)) {
+    fs.rmSync(testDir, { recursive: true, force: true });
+  }
+
+  const db = getDatabase(testDir);
+  const admin = getUserByUsername(db, 'admin');
+
+  const podId = upsertPodcast(db, {
+    url: 'https://example.com/test-show.xml',
+    title: 'Test Show',
+    description: 'A podcast for testing',
+    imageUrl: 'https://example.com/test.jpg',
+    author: 'Tester',
+    link: 'https://example.com'
+  });
+
+  const epId = upsertEpisode(db, podId, {
+    guid: 'test-ep-159',
+    title: 'Episode 159',
+    enclosure_url: 'https://example.com/audio/159.mp3',
+    duration: 1500,
+    pub_date: 1700000000
+  });
+
+  // 1. Client sends play action finishing the episode (100% played)
+  applyEpisodeActionsFromClient(db, admin.id, [{
+    podcast: 'https://example.com/test-show.xml',
+    episode: 'https://example.com/audio/159.mp3',
+    guid: 'test-ep-159',
+    action: 'play',
+    position: 1500,
+    total: 1500,
+    device: 'antennapod',
+    timestamp: '2026-09-21T20:00:00Z'
+  }]);
+
+  let state = db.prepare('SELECT position, total, is_played FROM episode_states WHERE user_id = ? AND episode_url = ?')
+    .get(admin.id, 'https://example.com/audio/159.mp3');
+  assert.equal(state.is_played, 1, 'Episode should be played after play action');
+  assert.equal(state.position, 1500, 'Position should be 1500');
+
+  // 2. Client auto-deletes the downloaded file after playback: sends action: 'delete' with position: 0
+  applyEpisodeActionsFromClient(db, admin.id, [{
+    podcast: 'https://example.com/test-show.xml',
+    episode: 'https://example.com/audio/159.mp3',
+    guid: 'test-ep-159',
+    action: 'delete',
+    position: 0,
+    total: 1500,
+    device: 'antennapod',
+    timestamp: '2026-09-21T20:00:01Z'
+  }]);
+
+  state = db.prepare('SELECT position, total, is_played FROM episode_states WHERE user_id = ? AND episode_url = ?')
+    .get(admin.id, 'https://example.com/audio/159.mp3');
+  assert.equal(state.is_played, 1, 'Episode played status MUST NOT be wiped by delete action');
+  assert.equal(state.position, 1500, 'Episode playback position MUST NOT be wiped by delete action');
+
+  // 3. Client re-downloads the file: sends action: 'download' with position: 0
+  applyEpisodeActionsFromClient(db, admin.id, [{
+    podcast: 'https://example.com/test-show.xml',
+    episode: 'https://example.com/audio/159.mp3',
+    guid: 'test-ep-159',
+    action: 'download',
+    position: 0,
+    total: 1500,
+    device: 'antennapod',
+    timestamp: '2026-09-21T20:00:02Z'
+  }]);
+
+  state = db.prepare('SELECT position, total, is_played FROM episode_states WHERE user_id = ? AND episode_url = ?')
+    .get(admin.id, 'https://example.com/audio/159.mp3');
+  assert.equal(state.is_played, 1, 'Download action MUST NOT overwrite played status');
+  assert.equal(state.position, 1500, 'Download action MUST NOT overwrite playback position');
+
+  // 4. Batch action upload with play + delete together in the same sync batch (typical AntennaPod sync)
+  const ep2Id = upsertEpisode(db, podId, {
+    guid: 'test-ep-160',
+    title: 'Episode 160',
+    enclosure_url: 'https://example.com/audio/160.mp3',
+    duration: 2000,
+    pub_date: 1700001000
+  });
+
+  applyEpisodeActionsFromClient(db, admin.id, [
+    {
+      podcast: 'https://example.com/test-show.xml',
+      episode: 'https://example.com/audio/160.mp3',
+      guid: 'test-ep-160',
+      action: 'play',
+      position: 2000,
+      total: 2000,
+      device: 'antennapod',
+      timestamp: '2026-09-21T20:10:00Z'
+    },
+    {
+      podcast: 'https://example.com/test-show.xml',
+      episode: 'https://example.com/audio/160.mp3',
+      guid: 'test-ep-160',
+      action: 'delete',
+      position: 0,
+      total: 2000,
+      device: 'antennapod',
+      timestamp: '2026-09-21T20:10:00Z'
+    }
+  ]);
+
+  state = db.prepare('SELECT position, total, is_played FROM episode_states WHERE user_id = ? AND episode_url = ?')
+    .get(admin.id, 'https://example.com/audio/160.mp3');
+  assert.equal(state.is_played, 1, 'Play followed by delete in the same batch must preserve is_played = 1');
+  assert.equal(state.position, 2000, 'Play followed by delete in the same batch must preserve position = 2000');
+
+  // 5. Explicit "Mark as unplayed" (action: 'new') should reset state
+  applyEpisodeActionsFromClient(db, admin.id, [{
+    podcast: 'https://example.com/test-show.xml',
+    episode: 'https://example.com/audio/160.mp3',
+    guid: 'test-ep-160',
+    action: 'new',
+    position: 0,
+    total: 2000,
+    device: 'antennapod',
+    timestamp: '2026-09-21T20:15:00Z'
+  }]);
+
+  state = db.prepare('SELECT position, total, is_played FROM episode_states WHERE user_id = ? AND episode_url = ?')
+    .get(admin.id, 'https://example.com/audio/160.mp3');
+  assert.equal(state.is_played, 0, 'Explicit action "new" resets is_played to 0');
+  assert.equal(state.position, 0, 'Explicit action "new" resets position to 0');
+
+  if (fs.existsSync(testDir)) {
+    fs.rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
