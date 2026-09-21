@@ -165,9 +165,16 @@ const server = http.createServer(async (req, res) => {
     if (handledWeb) return;
 
     // 3. Static Files & SPA fallback
+    const resolvedPublicDir = path.resolve(PUBLIC_DIR);
     const safePath = path.normalize(pathname).replace(/^(\.\.[/\\])+/, '');
     const requestedFile = safePath === '/' ? 'index.html' : safePath;
-    const fullPath = path.join(PUBLIC_DIR, requestedFile);
+    const fullPath = path.resolve(PUBLIC_DIR, requestedFile.startsWith('/') ? '.' + requestedFile : requestedFile);
+
+    if (!fullPath.startsWith(resolvedPublicDir)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
+    }
 
     serveStaticFile(req, res, fullPath);
   } catch (err) {
