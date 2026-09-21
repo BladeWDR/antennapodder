@@ -2421,8 +2421,10 @@
 
   function cleanSnippet(html) {
     if (!html) return '';
-    const text = decodeHtml(html);
-    return escapeHtml(text.slice(0, 150) + (text.length > 150 ? '...' : ''));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const text = doc.body.textContent || '';
+    const collapsed = text.replace(/\s+/g, ' ').trim();
+    return escapeHtml(collapsed.slice(0, 150) + (collapsed.length > 150 ? '...' : ''));
   }
 
   // Initialization
