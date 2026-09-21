@@ -72,9 +72,12 @@
             <label for="podcast-sort-select" style="font-size: 0.85rem; color: var(--theme-muted);">Sort:</label>
             <select id="podcast-sort-select" class="form-input" style="padding: 0.35rem 0.6rem; font-size: 0.85rem; width: auto; background-color: var(--ctp-surface0); color: var(--theme-text); border: 1px solid var(--theme-border); border-radius: 8px;">
               <option value="recent">Most Recently Updated</option>
-              <option value="alpha">Alphabetical (A-Z)</option>
+              <option value="alpha">Alphabetical</option>
               <option value="episodes">Number of Episodes</option>
             </select>
+            <button class="btn btn-secondary btn-icon" id="btn-podcast-sort-order" title="Sort descending" aria-label="Sort descending" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; flex-shrink: 0;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+            </button>
           </div>
           <div class="filter-btn-group" style="display: flex; gap: 0.25rem;">
             <button class="filter-btn active" id="filter-pod-all" data-pod-filter="all" style="padding: 0.35rem 0.75rem; font-size: 0.85rem;">All</button>

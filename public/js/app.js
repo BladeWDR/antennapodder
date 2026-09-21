@@ -24,6 +24,7 @@
     filter: 'all',
     searchQuery: '',
     podcastSort: localStorage.getItem('antennapodder_podcast_sort') || 'recent',
+    podcastSortOrder: localStorage.getItem('antennapodder_podcast_sort_order') || (localStorage.getItem('antennapodder_podcast_sort') === 'alpha' ? 'asc' : 'desc'),
     podcastFilter: 'all',
     librarySearchQuery: '',
     syncInterval: null,
@@ -51,6 +52,7 @@
     // Library
     podcastSearchInput: document.getElementById('podcast-search-input'),
     podcastSortSelect: document.getElementById('podcast-sort-select'),
+    btnPodcastSortOrder: document.getElementById('btn-podcast-sort-order'),
     filterPodAll: document.getElementById('filter-pod-all'),
     filterPodUnplayed: document.getElementById('filter-pod-unplayed'),
     filterPodFavs: document.getElementById('filter-pod-favs'),
@@ -520,10 +522,21 @@
     });
   }
 
+  function updatePodcastSortOrderButton() {
+    if (!el.btnPodcastSortOrder) return;
+    const isAsc = state.podcastSortOrder === 'asc';
+    el.btnPodcastSortOrder.title = isAsc ? 'Sort ascending (click to sort descending)' : 'Sort descending (click to sort ascending)';
+    el.btnPodcastSortOrder.setAttribute('aria-label', isAsc ? 'Sort ascending' : 'Sort descending');
+    el.btnPodcastSortOrder.innerHTML = isAsc
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>';
+  }
+
   function renderLibrary() {
     if (el.podcastSortSelect && el.podcastSortSelect.value !== state.podcastSort) {
       el.podcastSortSelect.value = state.podcastSort;
     }
+    updatePodcastSortOrderButton();
     if (el.podcastSearchInput && el.podcastSearchInput.value !== state.librarySearchQuery) {
       el.podcastSearchInput.value = state.librarySearchQuery;
     }
@@ -559,11 +572,17 @@
     }
 
     // Sort list
+    const isAsc = state.podcastSortOrder === 'asc';
     if (state.podcastSort === 'alpha') {
-      list.sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true }));
+      list.sort((a, b) => {
+        const cmp = (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true });
+        return isAsc ? cmp : -cmp;
+      });
     } else if (state.podcastSort === 'episodes') {
       list.sort((a, b) => {
-        const diff = (Number(b.total_episodes) || 0) - (Number(a.total_episodes) || 0);
+        const countA = Number(a.total_episodes) || 0;
+        const countB = Number(b.total_episodes) || 0;
+        const diff = isAsc ? countA - countB : countB - countA;
         return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true });
       });
     } else {
@@ -571,7 +590,7 @@
       list.sort((a, b) => {
         const dateA = Number(a.latest_pub_date || a.last_fetched_at || 0);
         const dateB = Number(b.latest_pub_date || b.last_fetched_at || 0);
-        const diff = dateB - dateA;
+        const diff = isAsc ? dateA - dateB : dateB - dateA;
         return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true });
       });
     }
@@ -2156,10 +2175,23 @@
     const handleSortChange = (e) => {
       state.podcastSort = e.target.value;
       localStorage.setItem('antennapodder_podcast_sort', state.podcastSort);
+      state.podcastSortOrder = state.podcastSort === 'alpha' ? 'asc' : 'desc';
+      localStorage.setItem('antennapodder_podcast_sort_order', state.podcastSortOrder);
+      updatePodcastSortOrderButton();
       renderLibrary();
     };
     el.podcastSortSelect.addEventListener('change', handleSortChange);
     el.podcastSortSelect.addEventListener('input', handleSortChange);
+  }
+
+  if (el.btnPodcastSortOrder) {
+    updatePodcastSortOrderButton();
+    el.btnPodcastSortOrder.addEventListener('click', () => {
+      state.podcastSortOrder = state.podcastSortOrder === 'asc' ? 'desc' : 'asc';
+      localStorage.setItem('antennapodder_podcast_sort_order', state.podcastSortOrder);
+      updatePodcastSortOrderButton();
+      renderLibrary();
+    });
   }
 
   const podFilterButtons = [
