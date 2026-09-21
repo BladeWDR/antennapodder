@@ -1,6 +1,6 @@
 {
   "name": "antennapodder",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "AntennaPod companion web player and gPodder sync server",
   "main": "src/server.js",
   "license": "MIT",
