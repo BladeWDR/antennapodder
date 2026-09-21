@@ -714,7 +714,7 @@
       el.detailArt.src = data.podcast.image_url || '';
       el.detailTitle.textContent = decodeHtml(data.podcast.title);
       el.detailAuthor.textContent = decodeHtml(data.podcast.author || 'Unknown author');
-      el.detailDesc.innerHTML = data.podcast.description || '';
+      el.detailDesc.innerHTML = formatShowNotes(data.podcast.description);
       el.episodeSearchInput.value = '';
       state.filter = 'all';
       state.searchQuery = '';
@@ -1019,27 +1019,94 @@
     return 'Episode Info';
   }
 
+  const ALLOWED_TAGS = new Set([
+    'a', 'abbr', 'b', 'bdi', 'bdo', 'blockquote', 'br', 'cite', 'code',
+    'dd', 'del', 'dfn', 'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4',
+    'h5', 'h6', 'hr', 'i', 'ins', 'kbd', 'li', 'mark', 'ol', 'p', 'pre',
+    'q', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
+    'time', 'u', 'ul', 'var'
+  ]);
+
+  const DISALLOWED_CONTENT_TAGS = new Set([
+    'script', 'style', 'iframe', 'object', 'embed', 'applet', 'noscript',
+    'noembed', 'param', 'svg', 'canvas', 'video', 'audio', 'form', 'input',
+    'button', 'select', 'textarea'
+  ]);
+
+  function sanitizeHtml(rawHtml) {
+    if (!rawHtml || typeof rawHtml !== 'string') return '';
+    const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+
+    function cleanNode(node) {
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          continue;
+        }
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          const tagName = child.tagName.toLowerCase();
+          if (DISALLOWED_CONTENT_TAGS.has(tagName)) {
+            child.remove();
+            continue;
+          }
+          if (!ALLOWED_TAGS.has(tagName)) {
+            cleanNode(child);
+            while (child.firstChild) {
+              node.insertBefore(child.firstChild, child);
+            }
+            child.remove();
+            continue;
+          }
+
+          const attrs = Array.from(child.attributes);
+          for (const attr of attrs) {
+            const attrName = attr.name.toLowerCase();
+            if (attrName.startsWith('on')) {
+              child.removeAttribute(attr.name);
+            } else if (tagName === 'a' && attrName === 'href') {
+              const val = attr.value.trim();
+              if (/^(https?:|mailto:)/i.test(val)) {
+                child.setAttribute('href', val);
+              } else {
+                child.removeAttribute('href');
+              }
+            } else if (attrName === 'title') {
+              // keep title attribute
+            } else {
+              child.removeAttribute(attr.name);
+            }
+          }
+
+          if (tagName === 'a') {
+            child.setAttribute('target', '_blank');
+            child.setAttribute('rel', 'noopener noreferrer');
+          }
+
+          cleanNode(child);
+        } else {
+          child.remove();
+        }
+      }
+    }
+
+    cleanNode(doc.body);
+    return doc.body.innerHTML;
+  }
+
   function formatShowNotes(rawHtml) {
     if (!rawHtml || !rawHtml.trim()) {
       return '<em style="color: var(--theme-muted);">No show notes provided for this episode.</em>';
     }
 
     const hasHtmlTags = /<[a-z][\s\S]*>/i.test(rawHtml);
-    let container = document.createElement('div');
     if (hasHtmlTags) {
-      container.innerHTML = rawHtml;
-    } else {
-      const escaped = escapeHtml(rawHtml);
-      const withLinks = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-      container.innerHTML = withLinks.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+      const sanitized = sanitizeHtml(rawHtml);
+      return sanitized.trim() || '<em style="color: var(--theme-muted);">No show notes provided for this episode.</em>';
     }
 
-    container.querySelectorAll('a').forEach(a => {
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-    });
-
-    return container.innerHTML;
+    const escaped = escapeHtml(rawHtml);
+    const withLinks = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    return withLinks.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
   }
 
   function showEpisodeDetailsModal(ep, podcast, allEpisodes) {
@@ -1129,7 +1196,7 @@
     el.nowplayingArt.src = episode.image_url || podcast.image_url || '';
     el.nowplayingTitle.textContent = decodeHtml(episode.title);
     el.nowplayingPodcast.textContent = decodeHtml(podcast.title);
-    el.nowplayingDesc.innerHTML = episode.description || 'No show notes available.';
+    el.nowplayingDesc.innerHTML = formatShowNotes(episode.description);
 
     // Update fullscreen video info
     if (el.videoFsTitle) el.videoFsTitle.textContent = decodeHtml(episode.title);
