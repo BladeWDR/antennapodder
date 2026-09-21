@@ -263,13 +263,46 @@ body {
 }
 
 /* Continue Listening Section */
+.continue-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.continue-scroll-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.continue-scroll-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .continue-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display: flex;
   gap: 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 4px 2px 8px 2px;
+  margin: -4px -2px -8px -2px;
+}
+
+.continue-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .continue-card {
+  flex: 0 0 320px;
+  max-width: 85vw;
+  scroll-snap-align: start;
   background-color: var(--theme-card-bg);
   border: 1px solid var(--theme-border);
   border-radius: 12px;

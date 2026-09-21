@@ -56,6 +56,9 @@
     filterPodFavs: document.getElementById('filter-pod-favs'),
     continueSection: document.getElementById('continue-listening-section'),
     continueGrid: document.getElementById('continue-listening-grid'),
+    continueNav: document.getElementById('continue-carousel-nav'),
+    btnContinuePrev: document.getElementById('btn-continue-prev'),
+    btnContinueNext: document.getElementById('btn-continue-next'),
     libraryGrid: document.getElementById('library-grid'),
     libraryEmpty: document.getElementById('library-empty'),
     libraryEmptyTitle: document.getElementById('library-empty-title'),
@@ -397,6 +400,7 @@
         renderContinueListening(inProgData.episodes || []);
       } else if (el.continueSection) {
         el.continueSection.style.display = 'none';
+        if (el.continueNav) el.continueNav.style.display = 'none';
       }
     } catch (e) {
       showToast('Failed to load library: ' + e.message, true);
@@ -413,6 +417,7 @@
       } else {
         el.continueSection.style.display = 'none';
         el.continueGrid.innerHTML = '';
+        if (el.continueNav) el.continueNav.style.display = 'none';
       }
     } catch (e) {
       // Ignore network errors
@@ -424,6 +429,7 @@
     if (!episodes || episodes.length === 0) {
       el.continueSection.style.display = 'none';
       el.continueGrid.innerHTML = '';
+      if (el.continueNav) el.continueNav.style.display = 'none';
       return;
     }
 
@@ -475,6 +481,43 @@
 
       el.continueGrid.appendChild(card);
     });
+
+    requestAnimationFrame(() => {
+      updateContinueNav();
+    });
+  }
+
+  function updateContinueNav() {
+    if (!el.continueGrid || !el.continueNav) return;
+    if (el.continueSection && el.continueSection.style.display === 'none') {
+      el.continueNav.style.display = 'none';
+      return;
+    }
+
+    const maxScroll = el.continueGrid.scrollWidth - el.continueGrid.clientWidth;
+    if (maxScroll <= 2) {
+      el.continueNav.style.display = 'none';
+      return;
+    }
+
+    el.continueNav.style.display = 'flex';
+
+    const scrollLeft = el.continueGrid.scrollLeft;
+    if (el.btnContinuePrev) {
+      el.btnContinuePrev.disabled = scrollLeft <= 2;
+    }
+    if (el.btnContinueNext) {
+      el.btnContinueNext.disabled = scrollLeft >= maxScroll - 2;
+    }
+  }
+
+  function scrollContinueCarousel(direction) {
+    if (!el.continueGrid) return;
+    const scrollAmount = Math.max(280, Math.floor(el.continueGrid.clientWidth * 0.75));
+    el.continueGrid.scrollBy({
+      left: direction * scrollAmount,
+      behavior: 'smooth'
+    });
   }
 
   function renderLibrary() {
@@ -499,10 +542,12 @@
 
       if (el.continueSection) {
         el.continueSection.style.display = 'none';
+        if (el.continueNav) el.continueNav.style.display = 'none';
       }
     } else {
       if (el.continueSection && el.continueGrid && el.continueGrid.children.length > 0) {
         el.continueSection.style.display = 'block';
+        requestAnimationFrame(updateContinueNav);
       }
     }
 
@@ -1408,6 +1453,9 @@
             card.remove();
             if (el.continueGrid.children.length === 0 && el.continueSection) {
               el.continueSection.style.display = 'none';
+              if (el.continueNav) el.continueNav.style.display = 'none';
+            } else {
+              updateContinueNav();
             }
           }
         }
@@ -2095,6 +2143,21 @@
   el.btnNavSettings.addEventListener('click', () => switchView('settings'));
   el.btnPodcastBack.addEventListener('click', () => switchView('library'));
   el.btnThemeToggle.addEventListener('click', toggleTheme);
+
+  // Continue Listening Carousel Controls
+  if (el.btnContinuePrev) {
+    el.btnContinuePrev.addEventListener('click', () => scrollContinueCarousel(-1));
+  }
+  if (el.btnContinueNext) {
+    el.btnContinueNext.addEventListener('click', () => scrollContinueCarousel(1));
+  }
+  if (el.continueGrid) {
+    el.continueGrid.addEventListener('scroll', updateContinueNav, { passive: true });
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => updateContinueNav()).observe(el.continueGrid);
+    }
+  }
+  window.addEventListener('resize', updateContinueNav);
 
   el.playerTrackClick.addEventListener('click', () => el.modalNowPlaying.classList.add('active'));
   el.btnExpandNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.add('active'));
