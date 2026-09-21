@@ -622,7 +622,7 @@
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
           </svg>
         </button>
-        <img class="podcast-card-img" src="${pod.image_url || '/favicon.ico'}" alt="${pod.title}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'><rect fill=\\'%23313244\\' width=\\'100\\' height=\\'100\\'/><text fill=\\'%23bac2de\\' x=\\'50\\' y=\\'55\\' font-size=\\'12\\' text-anchor=\\'middle\\'>Podcast</text></svg>'">
+        <img class="podcast-card-img" src="${escapeHtml(pod.image_url || '/favicon.ico')}" alt="${escapeHtml(pod.title || '')}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'><rect fill=\\'%23313244\\' width=\\'100\\' height=\\'100\\'/><text fill=\\'%23bac2de\\' x=\\'50\\' y=\\'55\\' font-size=\\'12\\' text-anchor=\\'middle\\'>Podcast</text></svg>'">
         ${pod.unplayed_episodes > 0 ? `<div class="podcast-card-badge">${pod.unplayed_episodes} new</div>` : ''}
         <div class="podcast-card-info">
           <div class="podcast-card-title">${escapeHtml(pod.title)}</div>
@@ -1832,7 +1832,7 @@
           const item = document.createElement('div');
           item.className = 'search-result-item';
           item.innerHTML = `
-            <img class="search-result-img" src="${r.imageUrl || ''}" alt="">
+            <img class="search-result-img" src="${escapeHtml(r.imageUrl || '')}" alt="${escapeHtml(r.title || '')}">
             <div class="search-result-info">
               <div class="search-result-title">${escapeHtml(r.title)}</div>
               <div class="search-result-author">${escapeHtml(r.author || '')}</div>
@@ -2348,14 +2348,13 @@
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function cleanSnippet(html) {
     if (!html) return '';
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    const text = tmp.textContent || tmp.innerText || '';
+    const text = decodeHtml(html);
     return escapeHtml(text.slice(0, 150) + (text.length > 150 ? '...' : ''));
   }
 
