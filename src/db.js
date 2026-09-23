@@ -636,15 +636,20 @@ export function getInProgressEpisodes(db, userId, limit = 12) {
            COALESCE(es.is_favorite, 0) as is_favorite,
            es.updated_at as state_updated_at
     FROM episode_states es
-    JOIN episodes e ON e.id = (
-      SELECT e2.id FROM episodes e2
-      WHERE (
-        e2.enclosure_url = es.episode_url
-        OR (e2.guid IS NOT NULL AND es.guid IS NOT NULL AND e2.guid = es.guid)
-        OR (e2.guid IS NOT NULL AND e2.guid = es.episode_url)
+    JOIN episodes e ON e.id = COALESCE(
+      (
+        SELECT e2.id FROM episodes e2
+        WHERE e2.enclosure_url = es.episode_url
+        ORDER BY e2.id DESC
+        LIMIT 1
+      ),
+      (
+        SELECT e2.id FROM episodes e2
+        WHERE (e2.guid IS NOT NULL AND es.guid IS NOT NULL AND e2.guid = es.guid)
+           OR (e2.guid IS NOT NULL AND e2.guid = es.episode_url)
+        ORDER BY e2.id DESC
+        LIMIT 1
       )
-      ORDER BY (e2.enclosure_url = es.episode_url) DESC, e2.id DESC
-      LIMIT 1
     )
     JOIN podcasts p ON p.id = e.podcast_id
     JOIN subscriptions s ON s.podcast_url = p.url AND s.user_id = es.user_id AND s.is_active = 1
@@ -663,15 +668,20 @@ export function getFavoriteEpisodes(db, userId, limit = 50) {
            1 as is_favorite,
            es.updated_at as state_updated_at
     FROM episode_states es
-    JOIN episodes e ON e.id = (
-      SELECT e2.id FROM episodes e2
-      WHERE (
-        e2.enclosure_url = es.episode_url
-        OR (e2.guid IS NOT NULL AND es.guid IS NOT NULL AND e2.guid = es.guid)
-        OR (e2.guid IS NOT NULL AND e2.guid = es.episode_url)
+    JOIN episodes e ON e.id = COALESCE(
+      (
+        SELECT e2.id FROM episodes e2
+        WHERE e2.enclosure_url = es.episode_url
+        ORDER BY e2.id DESC
+        LIMIT 1
+      ),
+      (
+        SELECT e2.id FROM episodes e2
+        WHERE (e2.guid IS NOT NULL AND es.guid IS NOT NULL AND e2.guid = es.guid)
+           OR (e2.guid IS NOT NULL AND e2.guid = es.episode_url)
+        ORDER BY e2.id DESC
+        LIMIT 1
       )
-      ORDER BY (e2.enclosure_url = es.episode_url) DESC, e2.id DESC
-      LIMIT 1
     )
     JOIN podcasts p ON p.id = e.podcast_id
     JOIN subscriptions s ON s.podcast_url = p.url AND s.user_id = es.user_id AND s.is_active = 1
