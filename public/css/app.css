@@ -1588,6 +1588,17 @@ video:-webkit-full-screen {
   pointer-events: auto;
 }
 
+.toast-playback-error {
+  max-width: 440px;
+}
+
+.toast-playback-error code {
+  background-color: var(--ctp-crust);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);

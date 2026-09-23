@@ -1232,10 +1232,26 @@
       el.nowplayingVideo.playbackRate = state.playbackRate;
       el.nowplayingVideo.volume = state.volume;
       el.nowplayingVideo.muted = state.isMuted;
-      if (episode.position > 0 && episode.position < (episode.duration || 999999) - 10) {
-        el.nowplayingVideo.currentTime = episode.position;
+      const seekTarget = (episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
+      if (seekTarget > 0) {
+        const applySeek = () => {
+          try {
+            el.nowplayingVideo.currentTime = seekTarget;
+          } catch (e) {
+            console.warn('Could not restore video position:', e);
+          }
+        };
+        if (el.nowplayingVideo.readyState >= 1) {
+          applySeek();
+        } else {
+          el.nowplayingVideo.addEventListener('loadedmetadata', applySeek, { once: true });
+        }
       }
-      el.nowplayingVideo.play().catch(console.error);
+      el.nowplayingVideo.play().catch(err => {
+        if (err.name !== 'AbortError' && state.activeEpisode) {
+          showPlaybackError(episode, err);
+        }
+      });
     } else {
       if (el.btnPlayerFullscreenVideo) el.btnPlayerFullscreenVideo.style.display = 'none';
       el.nowplayingVideoWrapper.classList.remove('active');
@@ -1246,10 +1262,26 @@
       el.nativeAudio.playbackRate = state.playbackRate;
       el.nativeAudio.volume = state.volume;
       el.nativeAudio.muted = state.isMuted;
-      if (episode.position > 0 && episode.position < (episode.duration || 999999) - 10) {
-        el.nativeAudio.currentTime = episode.position;
+      const seekTarget = (episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
+      if (seekTarget > 0) {
+        const applySeek = () => {
+          try {
+            el.nativeAudio.currentTime = seekTarget;
+          } catch (e) {
+            console.warn('Could not restore audio position:', e);
+          }
+        };
+        if (el.nativeAudio.readyState >= 1) {
+          applySeek();
+        } else {
+          el.nativeAudio.addEventListener('loadedmetadata', applySeek, { once: true });
+        }
       }
-      el.nativeAudio.play().catch(console.error);
+      el.nativeAudio.play().catch(err => {
+        if (err.name !== 'AbortError' && state.activeEpisode) {
+          showPlaybackError(episode, err);
+        }
+      });
     }
 
     state.isPlaying = true;
@@ -1349,7 +1381,11 @@
     if (!media.src) return;
 
     if (media.paused) {
-      media.play().catch(console.error);
+      media.play().catch(err => {
+        if (err.name !== 'AbortError' && state.activeEpisode) {
+          showPlaybackError(state.activeEpisode, err);
+        }
+      });
       state.isPlaying = true;
       updatePlayPauseIcons(true);
       startSyncHeartbeat();
@@ -1454,6 +1490,119 @@
     } catch (e) {
       // silent fail in background
     }
+  }
+
+  function showPlaybackError(episode, err) {
+    state.isPlaying = false;
+    updatePlayPauseIcons(false);
+    stopSyncHeartbeat();
+    if (state.currentPodcast) renderEpisodesList();
+    if (state.selectedDetailEpisode && state.selectedDetailEpisode.id === episode?.id) {
+      updateEpisodeDetailPlayBtn(episode);
+    }
+
+    const media = getActiveMediaElement();
+    const mediaErr = media?.error;
+    const errCode = mediaErr ? mediaErr.code : 0;
+    const errMessage = mediaErr?.message || err?.message || '';
+
+    let codeLabel = 'Playback failed to start';
+    if (errCode === 1) {
+      codeLabel = 'Playback aborted by user or browser (MEDIA_ERR_ABORTED)';
+    } else if (errCode === 2) {
+      codeLabel = 'Network error loading audio stream (MEDIA_ERR_NETWORK)';
+    } else if (errCode === 3) {
+      codeLabel = 'Audio decoding failed (MEDIA_ERR_DECODE)';
+    } else if (errCode === 4) {
+      codeLabel = 'Media source not supported or blocked (MEDIA_ERR_SRC_NOT_SUPPORTED)';
+    } else if (err?.name) {
+      codeLabel = `${err.name}: ${err.message || 'Unable to play media'}`;
+    }
+
+    let host = '';
+    const encUrl = episode?.enclosure_url || media?.src || '';
+    try {
+      if (encUrl) {
+        host = new URL(encUrl).hostname;
+      }
+    } catch (_) {}
+
+    const isTrackerHost = host && (
+      host.includes('pdst.fm') ||
+      host.includes('mgln.ai') ||
+      host.includes('claritaspod.com') ||
+      host.includes('podscribe') ||
+      host.includes('vpixl.com') ||
+      host.includes('chartable') ||
+      host.includes('podtrac.com') ||
+      host.includes('megaphone.fm')
+    );
+
+    let diagnosticHint = '';
+    if (errCode === 4 || errCode === 2 || isTrackerHost || err?.name === 'NotSupportedError') {
+      diagnosticHint = 'Ad-blockers or privacy shields (e.g. uBlock Origin, Brave Shields, Pi-hole) often block podcast tracking redirect domains like ' + (host || 'this host') + '. Try pausing shields or whitelisting the domain.';
+    }
+
+    console.error('[AntennaPodder Playback Error]', {
+      episodeTitle: episode?.title,
+      enclosureUrl: encUrl,
+      mediaErrorCode: errCode,
+      mediaErrorMessage: errMessage,
+      error: err,
+      isTrackerHost
+    });
+
+    if (!el.toastContainer) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-playback-error';
+    toast.style.borderLeftColor = 'var(--ctp-red)';
+    toast.style.maxWidth = '440px';
+    toast.style.pointerEvents = 'auto';
+
+    const titleDiv = document.createElement('div');
+    titleDiv.style.fontWeight = 'bold';
+    titleDiv.style.marginBottom = '4px';
+    titleDiv.style.display = 'flex';
+    titleDiv.style.justifyContent = 'space-between';
+    titleDiv.style.alignItems = 'center';
+    titleDiv.innerHTML = `<span>Playback Error</span><button type="button" style="background:none;border:none;color:var(--theme-muted);cursor:pointer;font-size:1.2rem;line-height:1;padding:0 4px;" aria-label="Close">&times;</button>`;
+
+    const bodyDiv = document.createElement('div');
+    bodyDiv.style.fontSize = '0.8rem';
+    bodyDiv.style.lineHeight = '1.4';
+
+    let contentHtml = `<div><strong>${escapeHtml(episode?.title || 'Episode')}</strong></div>`;
+    contentHtml += `<div style="color: var(--ctp-red); margin-top: 2px;">${escapeHtml(codeLabel)}</div>`;
+    if (errMessage && errMessage !== codeLabel) {
+      contentHtml += `<div style="color: var(--theme-muted); font-size: 0.75rem; margin-top: 2px;">${escapeHtml(errMessage)}</div>`;
+    }
+    if (host) {
+      contentHtml += `<div style="color: var(--theme-muted); margin-top: 2px; word-break: break-all;">Host: <code>${escapeHtml(host)}</code></div>`;
+    }
+    if (diagnosticHint) {
+      contentHtml += `<div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--theme-border); color: var(--theme-text); font-size: 0.75rem;"><strong>Tip:</strong> ${escapeHtml(diagnosticHint)}</div>`;
+    }
+
+    bodyDiv.innerHTML = contentHtml;
+    toast.appendChild(titleDiv);
+    toast.appendChild(bodyDiv);
+
+    const closeBtn = titleDiv.querySelector('button');
+    closeBtn.addEventListener('click', () => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    });
+
+    el.toastContainer.appendChild(toast);
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, 10000);
   }
 
   function dismissPlayer() {
@@ -1573,6 +1722,11 @@
       state.isPlaying = false;
       updatePlayPauseIcons(false);
       stopSyncHeartbeat();
+    });
+
+    media.addEventListener('error', () => {
+      if (!state.activeEpisode || !media.src) return;
+      showPlaybackError(state.activeEpisode, media.error);
     });
   }
 
