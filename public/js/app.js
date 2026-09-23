@@ -192,6 +192,7 @@
     btnEpisodeDetailPlay: document.getElementById('btn-episode-detail-play'),
     episodeDetailPlayIcon: document.getElementById('episode-detail-play-icon'),
     btnEpisodeDetailPlayText: document.getElementById('btn-episode-detail-play-text'),
+    btnEpisodeDetailRestart: document.getElementById('btn-episode-detail-restart'),
     episodeDetailNotes: document.getElementById('episode-detail-notes'),
 
     // Settings
@@ -1131,6 +1132,7 @@
   function showEpisodeDetailsModal(ep, podcast, allEpisodes) {
     if (!ep) return;
     state.selectedDetailEpisode = ep;
+    state.selectedDetailPodcast = podcast;
 
     if (el.episodeDetailArt) {
       el.episodeDetailArt.src = ep.image_url || podcast?.image_url || '';
@@ -1180,25 +1182,42 @@
   }
 
   function updateEpisodeDetailPlayBtn(ep) {
-    if (!el.btnEpisodeDetailPlay || !ep) return;
+    if (!ep) return;
+    const media = getActiveMediaElement();
     const isCurrentActive = state.activeEpisode && state.activeEpisode.id === ep.id;
-    if (isCurrentActive && state.isPlaying) {
-      if (el.btnEpisodeDetailPlayText) el.btnEpisodeDetailPlayText.textContent = 'Pause Episode';
-      if (el.episodeDetailPlayIcon) {
-        el.episodeDetailPlayIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+    const currentPos = isCurrentActive ? (media.currentTime || 0) : (ep.position || 0);
+
+    if (el.btnEpisodeDetailPlay) {
+      if (isCurrentActive && state.isPlaying) {
+        if (el.btnEpisodeDetailPlayText) el.btnEpisodeDetailPlayText.textContent = 'Pause Episode';
+        if (el.episodeDetailPlayIcon) {
+          el.episodeDetailPlayIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+        }
+      } else {
+        const hasProgress = currentPos > 5 && (!ep.duration || currentPos < ep.duration - 10);
+        if (el.btnEpisodeDetailPlayText) el.btnEpisodeDetailPlayText.textContent = hasProgress ? 'Resume Episode' : 'Play Episode';
+        if (el.episodeDetailPlayIcon) {
+          el.episodeDetailPlayIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+        }
       }
-    } else {
-      if (el.btnEpisodeDetailPlayText) el.btnEpisodeDetailPlayText.textContent = isCurrentActive ? 'Resume Episode' : 'Play Episode';
-      if (el.episodeDetailPlayIcon) {
-        el.episodeDetailPlayIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
-      }
+    }
+
+    if (el.btnEpisodeDetailRestart) {
+      const showRestart = currentPos > 5 || Boolean(ep.is_played);
+      el.btnEpisodeDetailRestart.style.display = showRestart ? 'inline-flex' : 'none';
     }
   }
 
   // Play Episode
-  function playEpisode(episode, podcast) {
+  function playEpisode(episode, podcast, options = {}) {
+    const fromBeginning = Boolean(options.fromBeginning);
     state.activeEpisode = episode;
     state.activePodcast = podcast;
+
+    if (fromBeginning) {
+      episode.position = 0;
+      episode.is_played = 0;
+    }
 
     const isVideo = (episode.enclosure_type && episode.enclosure_type.startsWith('video/')) || /\.(mp4|m4v|webm|mov)$/i.test(episode.enclosure_url);
     state.isVideo = isVideo;
@@ -1232,7 +1251,7 @@
       el.nowplayingVideo.playbackRate = state.playbackRate;
       el.nowplayingVideo.volume = state.volume;
       el.nowplayingVideo.muted = state.isMuted;
-      const seekTarget = (episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
+      const seekTarget = (!fromBeginning && episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
       if (seekTarget > 0) {
         const applySeek = () => {
           try {
@@ -1245,6 +1264,15 @@
           applySeek();
         } else {
           el.nowplayingVideo.addEventListener('loadedmetadata', applySeek, { once: true });
+        }
+      } else if (fromBeginning) {
+        const applyZero = () => {
+          try { el.nowplayingVideo.currentTime = 0; } catch (_) {}
+        };
+        if (el.nowplayingVideo.readyState >= 1) {
+          applyZero();
+        } else {
+          el.nowplayingVideo.addEventListener('loadedmetadata', applyZero, { once: true });
         }
       }
       el.nowplayingVideo.play().catch(err => {
@@ -1262,7 +1290,7 @@
       el.nativeAudio.playbackRate = state.playbackRate;
       el.nativeAudio.volume = state.volume;
       el.nativeAudio.muted = state.isMuted;
-      const seekTarget = (episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
+      const seekTarget = (!fromBeginning && episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
       if (seekTarget > 0) {
         const applySeek = () => {
           try {
@@ -1276,6 +1304,15 @@
         } else {
           el.nativeAudio.addEventListener('loadedmetadata', applySeek, { once: true });
         }
+      } else if (fromBeginning) {
+        const applyZero = () => {
+          try { el.nativeAudio.currentTime = 0; } catch (_) {}
+        };
+        if (el.nativeAudio.readyState >= 1) {
+          applyZero();
+        } else {
+          el.nativeAudio.addEventListener('loadedmetadata', applyZero, { once: true });
+        }
       }
       el.nativeAudio.play().catch(err => {
         if (err.name !== 'AbortError' && state.activeEpisode) {
@@ -1288,6 +1325,16 @@
     updatePlayPauseIcons(true);
     updateMediaSession(episode, podcast);
     startSyncHeartbeat();
+
+    if (fromBeginning) {
+      el.playerTimeCurrent.textContent = '0:00';
+      el.nowplayingTimeCurrent.textContent = '0:00';
+      if (el.videoFsTimeCurrent) el.videoFsTimeCurrent.textContent = '0:00';
+      el.playerScrubber.value = 0;
+      el.nowplayingScrubber.value = 0;
+      if (el.videoFsScrubber) el.videoFsScrubber.value = 0;
+      syncCurrentPlaybackState('play');
+    }
 
     if (state.currentPodcast && state.currentPodcast.id === podcast.id) {
       renderEpisodesList();
@@ -2510,9 +2557,51 @@
       if (isCurrentActive) {
         togglePlayPause();
       } else {
-        playEpisode(ep, state.currentPodcast);
+        const pod = state.selectedDetailPodcast || state.currentPodcast;
+        playEpisode(ep, pod);
       }
       updateEpisodeDetailPlayBtn(ep);
+    });
+  }
+
+  if (el.btnEpisodeDetailRestart) {
+    el.btnEpisodeDetailRestart.addEventListener('click', () => {
+      const ep = state.selectedDetailEpisode;
+      if (!ep) return;
+      const isCurrentActive = state.activeEpisode && state.activeEpisode.id === ep.id;
+      const pod = state.selectedDetailPodcast || state.currentPodcast || {
+        id: ep.podcast_id,
+        title: ep.podcast_title,
+        url: ep.podcast_url,
+        image_url: ep.podcast_image_url
+      };
+
+      if (isCurrentActive) {
+        const media = getActiveMediaElement();
+        media.currentTime = 0;
+        ep.position = 0;
+        ep.is_played = 0;
+        if (media.paused) {
+          media.play().catch(err => {
+            if (err.name !== 'AbortError') {
+              showPlaybackError(ep, err);
+            }
+          });
+          state.isPlaying = true;
+          updatePlayPauseIcons(true);
+          startSyncHeartbeat();
+        }
+        syncCurrentPlaybackState('play');
+      } else {
+        playEpisode(ep, pod, { fromBeginning: true });
+      }
+
+      if (el.episodeDetailStatusBadge) {
+        el.episodeDetailStatusBadge.innerHTML = '<span style="color: var(--theme-muted);">Unplayed</span>';
+      }
+      updateEpisodeDetailPlayBtn(ep);
+      if (state.currentPodcast) renderEpisodesList();
+      loadInProgressEpisodes();
     });
   }
 
