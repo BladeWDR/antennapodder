@@ -1,5 +1,7 @@
 # AntennaPodder
 
+[![CI](https://github.com/BladeWDR/antennapodder/actions/workflows/test.yml/badge.svg)](https://github.com/BladeWDR/antennapodder/actions/workflows/test.yml)
+
 AntennaPodder is a lightweight, standalone companion web player and synchronization server for the [AntennaPod](https://antennapod.org/) Android application.
 
 It is not associated in any way with the AntennaPod or gPodder projects.
