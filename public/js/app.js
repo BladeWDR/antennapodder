@@ -9,7 +9,8 @@
     config: {
       skip_forward_sec: 30,
       skip_back_sec: 10,
-      theme: 'mocha'
+      theme: 'mocha',
+      accent_color: 'mauve'
     },
     subscriptions: [],
     currentPodcast: null,
@@ -200,6 +201,9 @@
     settingSkipBack: document.getElementById('setting-skip-back'),
     settingSkipForward: document.getElementById('setting-skip-forward'),
     settingTheme: document.getElementById('setting-theme'),
+    accentSwatches: document.getElementById('accent-swatches'),
+    settingAccentPicker: document.getElementById('setting-accent-picker'),
+    settingAccentCustom: document.getElementById('setting-accent-custom'),
     boxNextcloudUrl: document.getElementById('box-nextcloud-url'),
     boxGpodderUrl: document.getElementById('box-gpodder-url'),
     devicesContainer: document.getElementById('devices-container'),
@@ -265,7 +269,112 @@
     return state.isVideo ? el.nowplayingVideo : el.nativeAudio;
   }
 
-  // Theme Handling
+  // Theme & Accent Handling
+  const ACCENT_PRESETS = [
+    { id: 'mauve', name: 'Mauve (Default)', mocha: '#cba6f7', latte: '#8839ef' },
+    { id: 'lavender', name: 'Lavender', mocha: '#b4befe', latte: '#7287fd' },
+    { id: 'blue', name: 'Blue', mocha: '#89b4fa', latte: '#1e66f5' },
+    { id: 'sapphire', name: 'Sapphire', mocha: '#74c7ec', latte: '#209fb5' },
+    { id: 'sky', name: 'Sky', mocha: '#89dceb', latte: '#04a5e5' },
+    { id: 'teal', name: 'Teal', mocha: '#94e2d5', latte: '#179299' },
+    { id: 'green', name: 'Green', mocha: '#a6e3a1', latte: '#40a02b' },
+    { id: 'yellow', name: 'Yellow', mocha: '#f9e2af', latte: '#df8e1d' },
+    { id: 'peach', name: 'Peach', mocha: '#fab387', latte: '#fe640b' },
+    { id: 'maroon', name: 'Maroon', mocha: '#eba0ac', latte: '#e64553' },
+    { id: 'red', name: 'Red', mocha: '#f38ba8', latte: '#d20f39' },
+    { id: 'pink', name: 'Pink', mocha: '#f5c2e7', latte: '#ea76cb' }
+  ];
+
+  function hexToRgb(hex) {
+    let clean = (hex || '').replace('#', '').trim();
+    if (clean.length === 3) {
+      clean = clean.split('').map(c => c + c).join('');
+    }
+    if (clean.length !== 6) return null;
+    const num = parseInt(clean, 16);
+    if (isNaN(num)) return null;
+    return {
+      r: (num >> 16) & 255,
+      g: (num >> 8) & 255,
+      b: num & 255
+    };
+  }
+
+  function adjustBrightness(hex, percent) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return hex;
+    const adjust = (val) => Math.min(255, Math.max(0, Math.round(val + (val * percent) / 100)));
+    const r = adjust(rgb.r).toString(16).padStart(2, '0');
+    const g = adjust(rgb.g).toString(16).padStart(2, '0');
+    const b = adjust(rgb.b).toString(16).padStart(2, '0');
+    return `#${r}${g}${b}`;
+  }
+
+  function getContrastColor(hex) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return '#ffffff';
+    const lum = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+    return lum > 160 ? '#11111b' : '#ffffff';
+  }
+
+  function applyAccent(accent, saveLocal = true) {
+    let val = (accent || 'mauve').trim().toLowerCase();
+    if (!val.startsWith('#') && /^[0-9a-f]{3,6}$/i.test(val)) {
+      val = '#' + val;
+    }
+    state.config.accent_color = val;
+    if (saveLocal) {
+      localStorage.setItem('antennapodder_accent', val);
+    }
+
+    const currentTheme = state.config.theme === 'latte' ? 'latte' : 'mocha';
+    const isCustom = val.startsWith('#');
+
+    // Update preset swatch active states
+    const swatches = el.accentSwatches ? el.accentSwatches.querySelectorAll('.accent-swatch') : [];
+    swatches.forEach(s => {
+      const pId = s.dataset.accent;
+      const isPresetActive = !isCustom && pId === val;
+      s.classList.toggle('active', isPresetActive);
+      s.setAttribute('aria-checked', isPresetActive ? 'true' : 'false');
+    });
+
+    if (isCustom) {
+      const rgb = hexToRgb(val);
+      if (rgb) {
+        document.documentElement.setAttribute('data-accent', 'custom');
+        const hoverColor = adjustBrightness(val, currentTheme === 'latte' ? -15 : 12);
+        const contrastColor = getContrastColor(val);
+        document.documentElement.style.setProperty('--theme-accent', val);
+        document.documentElement.style.setProperty('--theme-accent-hover', hoverColor);
+        document.documentElement.style.setProperty('--theme-accent-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+        document.documentElement.style.setProperty('--theme-accent-contrast', contrastColor);
+
+        if (el.settingAccentPicker) {
+          let fullHex = val;
+          if (val.length === 4) {
+            fullHex = '#' + val[1] + val[1] + val[2] + val[2] + val[3] + val[3];
+          }
+          el.settingAccentPicker.value = fullHex;
+        }
+        if (el.settingAccentCustom) {
+          el.settingAccentCustom.value = val;
+        }
+      }
+    } else {
+      const preset = ACCENT_PRESETS.find(p => p.id === val) || ACCENT_PRESETS[0];
+      document.documentElement.setAttribute('data-accent', preset.id);
+      document.documentElement.style.removeProperty('--theme-accent');
+      document.documentElement.style.removeProperty('--theme-accent-hover');
+      document.documentElement.style.removeProperty('--theme-accent-rgb');
+      document.documentElement.style.removeProperty('--theme-accent-contrast');
+
+      const hex = preset[currentTheme];
+      if (el.settingAccentPicker) el.settingAccentPicker.value = hex;
+      if (el.settingAccentCustom) el.settingAccentCustom.value = hex;
+    }
+  }
+
   function applyTheme(theme) {
     state.config.theme = theme;
     document.documentElement.setAttribute('data-theme', theme);
@@ -273,12 +382,13 @@
     if (theme === 'latte') {
       el.themeIconMoon.style.display = 'none';
       el.themeIconSun.style.display = 'block';
-      el.settingTheme.value = 'latte';
+      if (el.settingTheme) el.settingTheme.value = 'latte';
     } else {
       el.themeIconMoon.style.display = 'block';
       el.themeIconSun.style.display = 'none';
-      el.settingTheme.value = 'mocha';
+      if (el.settingTheme) el.settingTheme.value = 'mocha';
     }
+    applyAccent(state.config.accent_color, false);
   }
 
   function toggleTheme() {
@@ -356,6 +466,9 @@
           state.config.skip_back_sec = parseInt(data.config.skip_back_sec, 10) || 10;
           if (data.config.theme) {
             applyTheme(data.config.theme);
+          }
+          if (data.config.accent_color) {
+            applyAccent(data.config.accent_color);
           }
         }
         updateSkipBadges();
@@ -1907,6 +2020,12 @@
         state.config.skip_forward_sec = data.config.skip_forward_sec;
         state.config.skip_back_sec = data.config.skip_back_sec;
         updateSkipBadges();
+        if (data.config.theme) {
+          applyTheme(data.config.theme);
+        }
+        if (data.config.accent_color) {
+          applyAccent(data.config.accent_color, false);
+        }
       }
 
       // Update sync URLs with current hostname
@@ -1949,6 +2068,7 @@
     const skipBack = parseInt(el.settingSkipBack.value, 10) || 10;
     const skipFwd = parseInt(el.settingSkipForward.value, 10) || 30;
     const theme = el.settingTheme.value;
+    const accent_color = state.config.accent_color || 'mauve';
 
     try {
       const res = await fetch('/api/settings', {
@@ -1957,7 +2077,8 @@
         body: JSON.stringify({
           skip_forward_sec: skipFwd,
           skip_back_sec: skipBack,
-          theme
+          theme,
+          accent_color
         })
       });
       const data = await res.json();
@@ -1966,12 +2087,58 @@
         state.config.skip_back_sec = skipBack;
         updateSkipBadges();
         applyTheme(theme);
+        applyAccent(accent_color);
         showToast('Settings saved successfully');
       }
     } catch (err) {
       showToast('Failed to save settings: ' + err.message, true);
     }
   });
+
+  // Settings Theme & Accent Listeners
+  if (el.settingTheme) {
+    el.settingTheme.addEventListener('change', () => {
+      applyTheme(el.settingTheme.value);
+    });
+  }
+
+  if (el.accentSwatches) {
+    el.accentSwatches.addEventListener('click', (e) => {
+      const swatch = e.target.closest('.accent-swatch');
+      if (!swatch) return;
+      const presetId = swatch.dataset.accent;
+      if (presetId) {
+        applyAccent(presetId);
+      }
+    });
+
+    el.accentSwatches.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const swatch = e.target.closest('.accent-swatch');
+        if (swatch) {
+          e.preventDefault();
+          const presetId = swatch.dataset.accent;
+          if (presetId) applyAccent(presetId);
+        }
+      }
+    });
+  }
+
+  if (el.settingAccentPicker) {
+    el.settingAccentPicker.addEventListener('input', (e) => {
+      applyAccent(e.target.value);
+    });
+  }
+
+  if (el.settingAccentCustom) {
+    el.settingAccentCustom.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      const clean = val.startsWith('#') ? val : '#' + val;
+      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(clean)) {
+        applyAccent(clean);
+      }
+    });
+  }
 
   el.formChangePassword.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2704,7 +2871,9 @@
 
   // Initialization
   const savedTheme = localStorage.getItem('antennapodder_theme') || 'mocha';
+  const savedAccent = localStorage.getItem('antennapodder_accent') || 'mauve';
   applyTheme(savedTheme);
+  applyAccent(savedAccent, false);
 
   async function initApp() {
     const authenticated = await checkAuth();
