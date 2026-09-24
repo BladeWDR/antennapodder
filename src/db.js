@@ -253,6 +253,9 @@ export function getDatabase(dataDir = null) {
   if (!getConfigStmt.get('theme')) {
     setConfigStmt.run('theme', 'mocha');
   }
+  if (!getConfigStmt.get('accent_color')) {
+    setConfigStmt.run('accent_color', 'mauve');
+  }
 
   // Ensure initial user exists
   const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get();

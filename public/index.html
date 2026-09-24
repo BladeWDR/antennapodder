@@ -227,11 +227,34 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">Color Theme</label>
+            <label class="form-label" for="setting-theme">Color Theme</label>
             <select id="setting-theme" class="form-input" style="max-width: 260px;">
               <option value="mocha">Catppuccin Mocha (Dark)</option>
               <option value="latte">Catppuccin Latte (Light)</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Primary Accent Color</label>
+            <div class="theme-accent-swatches" id="accent-swatches" role="radiogroup" aria-label="Primary Accent Color">
+              <button type="button" class="accent-swatch" data-accent="mauve" title="Mauve (Default)" aria-label="Mauve (Default)"></button>
+              <button type="button" class="accent-swatch" data-accent="lavender" title="Lavender" aria-label="Lavender"></button>
+              <button type="button" class="accent-swatch" data-accent="blue" title="Blue" aria-label="Blue"></button>
+              <button type="button" class="accent-swatch" data-accent="sapphire" title="Sapphire" aria-label="Sapphire"></button>
+              <button type="button" class="accent-swatch" data-accent="sky" title="Sky" aria-label="Sky"></button>
+              <button type="button" class="accent-swatch" data-accent="teal" title="Teal" aria-label="Teal"></button>
+              <button type="button" class="accent-swatch" data-accent="green" title="Green" aria-label="Green"></button>
+              <button type="button" class="accent-swatch" data-accent="yellow" title="Yellow" aria-label="Yellow"></button>
+              <button type="button" class="accent-swatch" data-accent="peach" title="Peach" aria-label="Peach"></button>
+              <button type="button" class="accent-swatch" data-accent="maroon" title="Maroon" aria-label="Maroon"></button>
+              <button type="button" class="accent-swatch" data-accent="red" title="Red" aria-label="Red"></button>
+              <button type="button" class="accent-swatch" data-accent="pink" title="Pink" aria-label="Pink"></button>
+            </div>
+            <div class="theme-accent-custom-row">
+              <input type="color" id="setting-accent-picker" class="color-picker-input" value="#cba6f7" title="Custom color picker" aria-label="Custom color picker">
+              <input type="text" id="setting-accent-custom" class="form-input" placeholder="#cba6f7" maxlength="7" style="max-width: 130px; font-family: monospace;" aria-label="Custom hex color code">
+              <span class="theme-accent-custom-hint">Or insert color code</span>
+            </div>
           </div>
 
           <button type="submit" class="btn btn-primary">Save Settings</button>

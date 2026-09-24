@@ -197,6 +197,16 @@ test('Configuration storage', () => {
   const cfg = getAllConfig(db);
   assert.equal(cfg.skip_forward_sec, '45');
   assert.equal(cfg.skip_back_sec, '15');
+  assert.equal(cfg.theme, 'mocha');
+  assert.equal(cfg.accent_color, 'mauve');
+
+  // Test updating to preset accent
+  setConfig(db, 'accent_color', 'peach');
+  assert.equal(getAllConfig(db).accent_color, 'peach');
+
+  // Test updating to custom hex code
+  setConfig(db, 'accent_color', '#ff5500');
+  assert.equal(getAllConfig(db).accent_color, '#ff5500');
 
   // Clean up test data dir
   if (fs.existsSync(TEST_DATA_DIR)) {
