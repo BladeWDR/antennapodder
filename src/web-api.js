@@ -480,7 +480,8 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
       config: {
         skip_forward_sec: parseInt(config.skip_forward_sec, 10) || 30,
         skip_back_sec: parseInt(config.skip_back_sec, 10) || 10,
-        theme: config.theme || 'mocha'
+        theme: config.theme || 'mocha',
+        accent_color: config.accent_color || 'mauve'
       },
       user,
       devices
@@ -489,7 +490,7 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
   }
 
   if (pathname === '/api/settings' && method === 'POST') {
-    const { skip_forward_sec, skip_back_sec, theme } = body || {};
+    const { skip_forward_sec, skip_back_sec, theme, accent_color } = body || {};
 
     if (skip_forward_sec !== undefined) {
       const val = Math.max(1, Math.min(300, parseInt(skip_forward_sec, 10) || 30));
@@ -501,6 +502,17 @@ export async function handleWebRoutes(db, req, res, pathname, query, body) {
     }
     if (theme && (theme === 'mocha' || theme === 'latte')) {
       setConfig(db, 'theme', theme);
+    }
+    if (accent_color && typeof accent_color === 'string') {
+      let trimmed = accent_color.trim().toLowerCase();
+      if (!trimmed.startsWith('#') && /^[0-9a-f]{3,6}$/i.test(trimmed)) {
+        trimmed = '#' + trimmed;
+      }
+      const validPresets = ['mauve', 'lavender', 'blue', 'sapphire', 'sky', 'teal', 'green', 'yellow', 'peach', 'maroon', 'red', 'pink'];
+      const hexRegex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+      if (validPresets.includes(trimmed) || hexRegex.test(trimmed)) {
+        setConfig(db, 'accent_color', trimmed);
+      }
     }
 
     sendJson(200, { success: true, config: getAllConfig(db) });

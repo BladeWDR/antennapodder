@@ -229,5 +229,35 @@ test('End-to-End 2-way sync between Web UI and AntennaPod', async (t) => {
   assert.equal(tabletDev.caption, 'AntennaPod Tablet');
   assert.equal(tabletDev.type, 'mobile');
   assert.equal(typeof tabletDev.subscriptions, 'number', 'Second device must have subscriptions number');
+
+  // Step 6: Verify Web UI Settings for Theme and Primary Accent Color
+  const getSettingsRes = await fetch(`${baseUrl}/api/settings`, {
+    headers: { 'Cookie': cookie }
+  });
+  assert.equal(getSettingsRes.status, 200);
+  const settingsData = await getSettingsRes.json();
+  assert.equal(settingsData.config.theme, 'mocha');
+  assert.equal(settingsData.config.accent_color, 'mauve');
+
+  // Update theme to latte and accent to preset 'blue'
+  const updateSettingsRes1 = await fetch(`${baseUrl}/api/settings`, {
+    method: 'POST',
+    headers: { 'Cookie': cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme: 'latte', accent_color: 'blue' })
+  });
+  assert.equal(updateSettingsRes1.status, 200);
+  const updateData1 = await updateSettingsRes1.json();
+  assert.equal(updateData1.config.theme, 'latte');
+  assert.equal(updateData1.config.accent_color, 'blue');
+
+  // Update accent to custom hex code
+  const updateSettingsRes2 = await fetch(`${baseUrl}/api/settings`, {
+    method: 'POST',
+    headers: { 'Cookie': cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accent_color: '#34d399' })
+  });
+  assert.equal(updateSettingsRes2.status, 200);
+  const updateData2 = await updateSettingsRes2.json();
+  assert.equal(updateData2.config.accent_color, '#34d399');
 });
 
