@@ -95,6 +95,17 @@ test('Podcast sorting, favorite podcasts, and favorite episodes two-way sync', a
   assert.equal(zetaPod.total_episodes, 1);
   assert.equal(zetaPod.unplayed_episodes, 1);
 
+  // Verify unplayed_episodes remains accurate when historical played episodes exist that rolled off the feed
+  db.prepare(`
+    INSERT INTO episode_states (user_id, podcast_url, episode_url, guid, position, total, is_played, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+  `).run(admin.id, 'https://example.com/pod2.xml', 'https://example.com/old-ep-rolled-off.mp3', 'old-guid-1', 1000, 1000, Math.floor(Date.now() / 1000));
+
+  const subsWithHistoricalPlayed = getUserSubscriptions(db, admin.id);
+  const alphaPodWithHistorical = subsWithHistoricalPlayed.find(s => s.title === 'Alpha Podcast');
+  assert.equal(alphaPodWithHistorical.total_episodes, 1);
+  assert.equal(alphaPodWithHistorical.unplayed_episodes, 1);
+
   // 2. Test Podcast Favorite Toggle
   const favResult = togglePodcastFavorite(db, admin.id, pod2Id);
   assert.equal(favResult.is_favorite, 1);

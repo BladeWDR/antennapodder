@@ -153,6 +153,7 @@ export function getDatabase(dataDir = null) {
     CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id, pub_date DESC);
     CREATE INDEX IF NOT EXISTS idx_episodes_enclosure ON episodes(enclosure_url);
     CREATE INDEX IF NOT EXISTS idx_episodes_podcast_stats ON episodes(podcast_id, pub_date);
+    CREATE INDEX IF NOT EXISTS idx_episodes_podcast_enclosure ON episodes(podcast_id, enclosure_url);
     CREATE INDEX IF NOT EXISTS idx_episode_actions_sync ON episode_actions(user_id, created_at_epoch);
     CREATE INDEX IF NOT EXISTS idx_subscription_log_sync ON subscription_log(user_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_episode_states_user_pod ON episode_states(user_id, podcast_url);
@@ -393,10 +394,15 @@ export function getUserSubscriptions(db, userId) {
       GROUP BY podcast_id
     ) stats ON stats.podcast_id = p.id
     LEFT JOIN (
-      SELECT podcast_url, COUNT(*) as played_count
-      FROM episode_states
-      WHERE user_id = ? AND is_played = 1
-      GROUP BY podcast_url
+      SELECT es.podcast_url, COUNT(DISTINCT COALESCE(e1.id, e2.id)) as played_count
+      FROM episode_states es
+      JOIN podcasts p ON p.url = es.podcast_url
+      LEFT JOIN episodes e1 ON e1.podcast_id = p.id AND e1.enclosure_url = es.episode_url
+      LEFT JOIN episodes e2 ON e2.podcast_id = p.id AND (
+        (es.guid IS NOT NULL AND e2.guid = es.guid) OR e2.guid = es.episode_url
+      )
+      WHERE es.user_id = ? AND es.is_played = 1 AND (e1.id IS NOT NULL OR e2.id IS NOT NULL)
+      GROUP BY es.podcast_url
     ) played ON played.podcast_url = s.podcast_url
     WHERE s.user_id = ? AND s.is_active = 1
     ORDER BY COALESCE(p.title, s.podcast_url) COLLATE NOCASE ASC
@@ -854,7 +860,11 @@ export function markAllEpisodesPlayed(db, userId, podcastId) {
   const unplayedEpisodes = db.prepare(`
     SELECT e.id
     FROM episodes e
-    LEFT JOIN episode_states s ON s.user_id = ? AND s.episode_url = e.enclosure_url
+    LEFT JOIN episode_states s ON s.user_id = ? AND (
+      s.episode_url = e.enclosure_url
+      OR (e.guid IS NOT NULL AND s.guid IS NOT NULL AND s.guid = e.guid)
+      OR (e.guid IS NOT NULL AND s.episode_url = e.guid)
+    )
     WHERE e.podcast_id = ? AND COALESCE(s.is_played, 0) = 0
   `).all(userId, podcastId);
 
