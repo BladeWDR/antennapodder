@@ -702,8 +702,8 @@
     } else {
       // Default: most recently updated
       list.sort((a, b) => {
-        const dateA = Number(a.latest_pub_date || a.last_fetched_at || 0);
-        const dateB = Number(b.latest_pub_date || b.last_fetched_at || 0);
+        const dateA = Number(a.latest_pub_date || 0);
+        const dateB = Number(b.latest_pub_date || 0);
         const diff = isAsc ? dateA - dateB : dateB - dateA;
         return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base', numeric: true });
       });

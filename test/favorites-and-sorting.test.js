@@ -106,6 +106,22 @@ test('Podcast sorting, favorite podcasts, and favorite episodes two-way sync', a
   assert.equal(alphaPodWithHistorical.total_episodes, 1);
   assert.equal(alphaPodWithHistorical.unplayed_episodes, 1);
 
+  // Verify empty podcast has latest_pub_date = 0 even with last_fetched_at set
+  const emptyPodId = upsertPodcast(db, {
+    url: 'https://example.com/emptypod.xml',
+    title: 'Empty Feed Podcast',
+    description: 'No episodes yet',
+    imageUrl: null,
+    author: 'Empty Author',
+    link: null
+  });
+  addSubscription(db, admin.id, 'https://example.com/emptypod.xml');
+  const subsWithEmpty = getUserSubscriptions(db, admin.id);
+  const emptyPod = subsWithEmpty.find(s => s.id === emptyPodId);
+  assert.ok(emptyPod);
+  assert.equal(emptyPod.total_episodes, 0);
+  assert.equal(emptyPod.latest_pub_date, 0);
+
   // 2. Test Podcast Favorite Toggle
   const favResult = togglePodcastFavorite(db, admin.id, pod2Id);
   assert.equal(favResult.is_favorite, 1);

@@ -383,7 +383,7 @@ export function getUserSubscriptions(db, userId) {
   return db.prepare(`
     SELECT s.podcast_url, p.id, COALESCE(p.title, s.podcast_url) as title, p.description, p.image_url, p.author, p.link, COALESCE(p.last_fetched_at, 0) as last_fetched_at,
            COALESCE(s.is_favorite, 0) as is_favorite,
-           COALESCE(NULLIF(stats.latest_pub_date, 0), p.last_fetched_at, 0) as latest_pub_date,
+           COALESCE(stats.latest_pub_date, 0) as latest_pub_date,
            COALESCE(stats.total_episodes, 0) as total_episodes,
            MAX(0, COALESCE(stats.total_episodes, 0) - COALESCE(played.played_count, 0)) as unplayed_episodes
     FROM subscriptions s
