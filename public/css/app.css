@@ -1052,7 +1052,7 @@ body {
   appearance: none;
   height: 5px;
   border-radius: 3px;
-  background: var(--ctp-surface1);
+  background: linear-gradient(to right, var(--theme-accent) var(--progress, 0%), var(--ctp-surface1) var(--progress, 0%));
   outline: none;
   cursor: pointer;
 }
@@ -1064,11 +1064,37 @@ body {
   height: 12px;
   border-radius: 50%;
   background: var(--theme-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   cursor: pointer;
   transition: transform 0.1s ease;
 }
 
 .scrubber-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.scrubber-slider::-moz-range-track {
+  background: transparent;
+  border: none;
+  height: 5px;
+}
+
+.scrubber-slider::-moz-range-progress {
+  background: transparent;
+}
+
+.scrubber-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.scrubber-slider::-moz-range-thumb:hover {
   transform: scale(1.3);
 }
 
@@ -1111,7 +1137,8 @@ body {
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: var(--ctp-surface1);
+  background: linear-gradient(to right, var(--theme-accent) var(--progress, 100%), var(--ctp-surface1) var(--progress, 100%));
+  outline: none;
   cursor: pointer;
 }
 
@@ -1122,7 +1149,38 @@ body {
   height: 10px;
   border-radius: 50%;
   background: var(--theme-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.volume-slider::-moz-range-track {
+  background: transparent;
+  border: none;
+  height: 4px;
+}
+
+.volume-slider::-moz-range-progress {
+  background: transparent;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.volume-slider::-moz-range-thumb:hover {
+  transform: scale(1.3);
 }
 
 /* Full Now Playing Modal */

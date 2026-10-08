@@ -1321,6 +1321,19 @@
     }
   }
 
+  // Update scrubber position and colored progress fill
+  function updateScrubbers(val) {
+    const clamped = Math.max(0, Math.min(100, Number(val) || 0));
+    const percentStr = `${clamped}%`;
+    const scrubbers = [el.playerScrubber, el.nowplayingScrubber, el.videoFsScrubber];
+    scrubbers.forEach(s => {
+      if (s) {
+        s.value = clamped;
+        s.style.setProperty('--progress', percentStr);
+      }
+    });
+  }
+
   // Play Episode
   function playEpisode(episode, podcast, options = {}) {
     const fromBeginning = Boolean(options.fromBeginning);
@@ -1334,6 +1347,7 @@
 
     const isVideo = (episode.enclosure_type && episode.enclosure_type.startsWith('video/')) || /\.(mp4|m4v|webm|mov)$/i.test(episode.enclosure_url);
     state.isVideo = isVideo;
+    const seekTarget = (!fromBeginning && episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
 
     // Show player bar
     el.playerBar.style.display = 'flex';
@@ -1364,7 +1378,6 @@
       el.nowplayingVideo.playbackRate = state.playbackRate;
       el.nowplayingVideo.volume = state.volume;
       el.nowplayingVideo.muted = state.isMuted;
-      const seekTarget = (!fromBeginning && episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
       if (seekTarget > 0) {
         const applySeek = () => {
           try {
@@ -1403,7 +1416,6 @@
       el.nativeAudio.playbackRate = state.playbackRate;
       el.nativeAudio.volume = state.volume;
       el.nativeAudio.muted = state.isMuted;
-      const seekTarget = (!fromBeginning && episode.position > 0 && episode.position < (episode.duration || 999999) - 10) ? episode.position : 0;
       if (seekTarget > 0) {
         const applySeek = () => {
           try {
@@ -1443,10 +1455,12 @@
       el.playerTimeCurrent.textContent = '0:00';
       el.nowplayingTimeCurrent.textContent = '0:00';
       if (el.videoFsTimeCurrent) el.videoFsTimeCurrent.textContent = '0:00';
-      el.playerScrubber.value = 0;
-      el.nowplayingScrubber.value = 0;
-      if (el.videoFsScrubber) el.videoFsScrubber.value = 0;
+      updateScrubbers(0);
       syncCurrentPlaybackState('play');
+    } else if (seekTarget > 0 && episode.duration > 0) {
+      updateScrubbers((seekTarget / episode.duration) * 100);
+    } else {
+      updateScrubbers(0);
     }
 
     if (state.currentPodcast && state.currentPodcast.id === podcast.id) {
@@ -1794,9 +1808,7 @@
     el.nowplayingVideoWrapper.classList.remove('active');
 
     // Reset scrubber and time text
-    el.playerScrubber.value = 0;
-    el.nowplayingScrubber.value = 0;
-    if (el.videoFsScrubber) el.videoFsScrubber.value = 0;
+    updateScrubbers(0);
     el.playerTimeCurrent.textContent = '0:00';
     el.playerTimeTotal.textContent = '0:00';
     el.nowplayingTimeCurrent.textContent = '0:00';
@@ -1828,9 +1840,7 @@
         el.nowplayingTimeTotal.textContent = formatTime(dur);
         if (el.videoFsTimeTotal) el.videoFsTimeTotal.textContent = formatTime(dur);
         const progress = (cur / dur) * 100;
-        el.playerScrubber.value = progress;
-        el.nowplayingScrubber.value = progress;
-        if (el.videoFsScrubber) el.videoFsScrubber.value = progress;
+        updateScrubbers(progress);
       }
     });
 
@@ -1899,6 +1909,7 @@
     if (media.duration) {
       media.currentTime = (val / 100) * media.duration;
     }
+    updateScrubbers(val);
   }
 
   el.playerScrubber.addEventListener('input', (e) => handleScrubberInput(e.target.value));
@@ -1944,9 +1955,13 @@
     el.nowplayingVideo.volume = state.volume;
     el.nativeAudio.muted = state.isMuted;
     el.nowplayingVideo.muted = state.isMuted;
-    el.volumeSlider.value = state.isMuted ? 0 : state.volume;
+    const effectiveVol = state.isMuted ? 0 : state.volume;
+    const volPercentStr = `${Math.round(effectiveVol * 100)}%`;
+    el.volumeSlider.value = effectiveVol;
+    el.volumeSlider.style.setProperty('--progress', volPercentStr);
     if (el.videoFsVolumeSlider) {
-      el.videoFsVolumeSlider.value = state.isMuted ? 0 : state.volume;
+      el.videoFsVolumeSlider.value = effectiveVol;
+      el.videoFsVolumeSlider.style.setProperty('--progress', volPercentStr);
     }
 
     if (state.isMuted || state.volume === 0) {
@@ -2874,6 +2889,8 @@
   const savedAccent = localStorage.getItem('antennapodder_accent') || 'mauve';
   applyTheme(savedTheme);
   applyAccent(savedAccent, false);
+  updateScrubbers(0);
+  updateVolumeUI();
 
   async function initApp() {
     const authenticated = await checkAuth();
