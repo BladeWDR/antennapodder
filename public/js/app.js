@@ -123,11 +123,13 @@
     iconVolHigh: document.getElementById('icon-vol-high'),
     iconVolMute: document.getElementById('icon-vol-mute'),
     btnExpandNowplaying: document.getElementById('btn-expand-nowplaying'),
+    btnPlayerPipVideo: document.getElementById('btn-player-pip-video'),
     btnPlayerFullscreenVideo: document.getElementById('btn-player-fullscreen-video'),
 
     // Now Playing Modal
     modalNowPlaying: document.getElementById('modal-now-playing'),
     btnCloseNowplaying: document.getElementById('btn-close-nowplaying'),
+    btnVideoOverlayPip: document.getElementById('btn-video-overlay-pip'),
     btnVideoOverlayFullscreen: document.getElementById('btn-video-overlay-fullscreen'),
     nowplayingArt: document.getElementById('nowplaying-art'),
     nowplayingTitle: document.getElementById('nowplaying-title'),
@@ -168,6 +170,7 @@
     videoFsIconVolHigh: document.getElementById('video-fs-icon-vol-high'),
     videoFsIconVolMute: document.getElementById('video-fs-icon-vol-mute'),
     videoFsVolumeSlider: document.getElementById('video-fs-volume-slider'),
+    btnVideoFsPip: document.getElementById('btn-video-fs-pip'),
     btnVideoFsExit: document.getElementById('btn-video-fs-exit'),
 
     // Add Feed Modal
@@ -1371,6 +1374,10 @@
 
     if (isVideo) {
       if (el.btnPlayerFullscreenVideo) el.btnPlayerFullscreenVideo.style.display = 'inline-flex';
+      const pipOk = isPipSupported();
+      if (el.btnPlayerPipVideo) el.btnPlayerPipVideo.style.display = pipOk ? 'inline-flex' : 'none';
+      if (el.btnVideoOverlayPip) el.btnVideoOverlayPip.style.display = pipOk ? 'flex' : 'none';
+      if (el.btnVideoFsPip) el.btnVideoFsPip.style.display = pipOk ? 'inline-flex' : 'none';
       el.nowplayingVideoWrapper.classList.add('active');
       el.nowplayingArt.style.display = 'none';
       el.nativeAudio.pause();
@@ -1408,6 +1415,12 @@
       });
     } else {
       if (el.btnPlayerFullscreenVideo) el.btnPlayerFullscreenVideo.style.display = 'none';
+      if (el.btnPlayerPipVideo) el.btnPlayerPipVideo.style.display = 'none';
+      if (el.btnVideoOverlayPip) el.btnVideoOverlayPip.style.display = 'none';
+      if (el.btnVideoFsPip) el.btnVideoFsPip.style.display = 'none';
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture().catch(() => {});
+      }
       el.nowplayingVideoWrapper.classList.remove('active');
       el.nowplayingArt.style.display = 'block';
       el.nowplayingVideo.pause();
@@ -1549,6 +1562,41 @@
 
   document.addEventListener('fullscreenchange', handleFullscreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+  function isPipSupported() {
+    return Boolean(
+      document.pictureInPictureEnabled ||
+      (el.nowplayingVideo && el.nowplayingVideo.webkitSupportsPresentationMode && el.nowplayingVideo.webkitSupportsPresentationMode('picture-in-picture'))
+    );
+  }
+
+  async function togglePictureInPicture() {
+    const video = el.nowplayingVideo;
+    if (!video || !video.src) return;
+
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        return;
+      }
+
+      if (document.pictureInPictureEnabled) {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          if (document.exitFullscreen) await document.exitFullscreen().catch(() => {});
+          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+        await video.requestPictureInPicture();
+      } else if (video.webkitSupportsPresentationMode && video.webkitSetPresentationMode) {
+        const mode = video.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+        video.webkitSetPresentationMode(mode);
+      } else {
+        showToast('Picture-in-Picture is not supported in this browser', true);
+      }
+    } catch (err) {
+      console.warn('Picture-in-Picture error:', err);
+      showToast('Could not open Picture-in-Picture: ' + err.message, true);
+    }
+  }
 
   function togglePlayPause() {
     const media = getActiveMediaElement();
@@ -1792,6 +1840,14 @@
         document.webkitExitFullscreen();
       }
     }
+
+    // Exit Picture-in-Picture if active
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+    }
+    if (el.btnPlayerPipVideo) el.btnPlayerPipVideo.style.display = 'none';
+    if (el.btnVideoOverlayPip) el.btnVideoOverlayPip.style.display = 'none';
+    if (el.btnVideoFsPip) el.btnVideoFsPip.style.display = 'none';
 
     // Stop and clear media elements
     el.nativeAudio.pause();
@@ -2661,6 +2717,28 @@
   if (el.btnVideoOverlayFullscreen) {
     el.btnVideoOverlayFullscreen.addEventListener('click', toggleVideoFullscreen);
   }
+  if (el.btnPlayerPipVideo) {
+    el.btnPlayerPipVideo.addEventListener('click', togglePictureInPicture);
+  }
+  if (el.btnVideoOverlayPip) {
+    el.btnVideoOverlayPip.addEventListener('click', togglePictureInPicture);
+  }
+  if (el.btnVideoFsPip) {
+    el.btnVideoFsPip.addEventListener('click', () => {
+      togglePictureInPicture();
+      resetFsControlsTimer();
+    });
+  }
+
+  if (el.nowplayingVideo) {
+    const updatePipState = (active) => {
+      [el.btnPlayerPipVideo, el.btnVideoOverlayPip, el.btnVideoFsPip].forEach(btn => {
+        if (btn) btn.classList.toggle('pip-active', active);
+      });
+    };
+    el.nowplayingVideo.addEventListener('enterpictureinpicture', () => updatePipState(true));
+    el.nowplayingVideo.addEventListener('leavepictureinpicture', () => updatePipState(false));
+  }
 
   // Fullscreen video controls binding
   if (el.btnVideoFsPlayPause) {
@@ -2699,7 +2777,7 @@
   let videoClickTimeout = null;
   if (el.nowplayingVideo) {
     el.nowplayingVideo.addEventListener('click', (e) => {
-      if (e.target.closest('#video-fs-player-bar') || e.target.closest('#video-fs-top-bar') || e.target.closest('#btn-video-overlay-fullscreen')) return;
+      if (e.target.closest('#video-fs-player-bar') || e.target.closest('#video-fs-top-bar') || e.target.closest('#btn-video-overlay-fullscreen') || e.target.closest('#btn-video-overlay-pip')) return;
       if (videoClickTimeout) {
         clearTimeout(videoClickTimeout);
         videoClickTimeout = null;
@@ -2851,6 +2929,9 @@
     } else if (e.code === 'KeyF' && state.isVideo) {
       e.preventDefault();
       toggleVideoFullscreen();
+    } else if (e.code === 'KeyP' && state.isVideo && isPipSupported()) {
+      e.preventDefault();
+      togglePictureInPicture();
     } else if (e.code === 'Escape') {
       el.modalNowPlaying.classList.remove('active');
       el.modalAddPodcast.classList.remove('active');
