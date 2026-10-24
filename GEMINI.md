@@ -20,3 +20,7 @@
 - Keep commits focused and atomic.
 - Follow the Conventional Commits specification (e.g., `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`).
 - Write clear, descriptive commit messages in the imperative mood without a trailing period.
+
+## 6. Lessons Learned & User Corrections
+
+Whenever the user corrects an agent or provides guidance on workflows, conventions, or design decisions, document it here immediately so future agents adhere to it.
