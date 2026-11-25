@@ -113,7 +113,10 @@ jobs:
         if: ${{ steps.latest.outputs.tag != '' }}
         run: |
           set -euo pipefail
-          image="ghcr.io/${GITHUB_REPOSITORY}"
+          # docker manifest (OCI ref-spec) rejects a mixed-case repository name;
+          # lowercase GITHUB_REPOSITORY, mirroring what build-push-action does for
+          # the ":latest" push above so the two references match.
+          image="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
           latest_tag="${{ steps.latest.outputs.tag }}"
           echo "Re-tagging ${image}:${latest_tag} from ${image}:latest"
           docker manifest create --amend "${image}:${latest_tag}" "${image}:latest"
