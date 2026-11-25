@@ -964,22 +964,44 @@ body {
 
 .player-track-text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .player-track-title {
+  display: block;
   font-size: 0.9rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.player-track-title:hover {
+  color: var(--theme-accent);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .player-track-podcast {
+  display: block;
   font-size: 0.75rem;
   color: var(--theme-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.player-track-podcast:hover {
+  color: var(--theme-accent);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .player-center {

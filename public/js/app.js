@@ -2701,6 +2701,19 @@
   el.btnExpandNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.add('active'));
   el.btnCloseNowplaying.addEventListener('click', () => el.modalNowPlaying.classList.remove('active'));
 
+  el.playerTitle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.modalNowPlaying.classList.add('active');
+  });
+  el.playerPodcast.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const podcastId = state.activePodcast?.id || state.activeEpisode?.podcast_id;
+    if (podcastId) {
+      el.modalNowPlaying.classList.remove('active');
+      openPodcastDetail(podcastId);
+    }
+  });
+
   if (el.nowplayingPodcast) {
     el.nowplayingPodcast.addEventListener('click', () => {
       const podcastId = state.activePodcast?.id || state.activeEpisode?.podcast_id;
