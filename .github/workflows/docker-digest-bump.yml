@@ -1,0 +1,156 @@
+name: Weekly Node Base-Image Bump
+
+# The Dockerfile pins the Node base image by *digest* (line 1), so a plain
+# rebuild never picks up a newer Node. This job resolves the current digest of
+# node:22-alpine each week and, if it changed, opens a PR that updates it.
+#
+# The PR auto-merges only once CI is green: the existing test.yml runs the test
+# suite on pull_request to main, and the "Wait for CI" step below polls that
+# check before merging. Merging lands a Dockerfile change on main, which triggers
+# docker-scheduled.yml to re-publish "latest" with the current Node.
+#
+# Requires a repository secret PULL_REQUEST_TOKEN: a fine-grained PAT with
+# contents: write and pull-requests: write. (The latter also lets the workflow
+# apply labels to the PR and auto-merge it.)
+
+on:
+  schedule:
+    # 01:00 UTC, Sundays.
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bump-node-digest:
+    name: Bump node:22-alpine digest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Resolve current digest of node:22-alpine
+        id: digest
+        run: |
+          set -euo pipefail
+          # docker manifest inspect returns the digest with a "sha256:" prefix.
+          # Strip it so the substitution below yields a single "sha256:..." token.
+          digest="$(docker manifest inspect node:22-alpine \
+            | jq -r '.manifests[0].digest' | sed 's/^sha256://')"
+          echo "Resolved node:22-alpine digest: sha256:${digest}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Dockerfile FROM line
+        run: |
+          set -euo pipefail
+          # Replace the digest on the pinned FROM line. Anchored to the
+          # node:22-alpine base so unrelated lines are never touched. Uses '|'
+          # as the sed delimiter so the 'sha256:' in the pattern is not a problem.
+          sed -i "s|^FROM node:22-alpine@sha256:[0-9a-f]\{64\}$|FROM node:22-alpine@sha256:${digest}|" Dockerfile
+
+      - name: Detect whether the digest changed
+        id: changed
+        run: |
+          if [ -z "$(git diff -- Dockerfile)" ]; then
+            echo "unchanged=true" >> "$GITHUB_OUTPUT"
+            echo "node:22-alpine digest is already current; nothing to bump."
+          else
+            echo "unchanged=false" >> "$GITHUB_OUTPUT"
+            git diff -- Dockerfile
+          fi
+
+      - name: Configure git identity
+        if: steps.changed.outputs.unchanged == 'false'
+        run: |
+          git config user.name "antennapodder-bot"
+          git config user.email "antennapodder-bot@users.noreply.github.com"
+
+      - name: Open PR with the updated digest
+        id: pr
+        if: steps.changed.outputs.unchanged == 'false'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.PULL_REQUEST_TOKEN }}
+          branch: chore/bump-node-digest
+          delete-branch: true
+          commit-message: 'chore: bump node:22-alpine base image digest to sha256:${{ steps.digest.outputs.digest }}'
+          title: 'chore: bump node:22-alpine base image digest'
+          body: |
+            Weekly automated bump of the Node base image digest so that
+            `ghcr.io/BladeWDR/antennapodder:latest` ships with current Node
+            security and dependency updates.
+
+            New digest: `sha256:${{ steps.digest.outputs.digest }}`
+
+            This PR **auto-merges once CI is green** (see `test.yml`), which then
+            re-publishes the `latest` image via `docker-scheduled.yml`.
+
+      - name: Apply labels to the PR
+        if: steps.changed.outputs.unchanged == 'false' && steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr edit "$PR_NUMBER" --add-label chore,dependencies
+
+      # --- Auto-merge once the test.yml check on this PR is green -------------
+      - name: Wait for CI (test.yml) on the PR branch
+        if: steps.changed.outputs.unchanged == 'false' && steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          set -euo pipefail
+          echo "Waiting for the 'Run Tests' check on PR #$PR_NUMBER ..."
+          # This workflow runs on schedule/workflow_dispatch, so
+          # github.event.pull_request does not exist. Resolve the PR's head
+          # commit from the PR itself.
+          head_sha="$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')"
+          echo "PR head SHA: $head_sha"
+          # Poll commit checks on the PR's head SHA until they settle.
+          # A failing CI (or any non-success conclusion) blocks the merge.
+          #
+          # NB: test.yml triggers on pull_request, so its check is tied to the
+          # head SHA we query here. We require at least one check to be present
+          # before we consider the PR ready, so an empty "no checks yet" window
+          # cannot be mistaken for "all checks passed".
+          for i in $(seq 1 60); do
+            status_json="$(gh pr checks "$PR_NUMBER" --ref "$head_sha" --json name,state,conclusion 2>/dev/null || true)"
+            count="$(echo "$status_json" | jq 'length' 2>/dev/null || echo 0)"
+            # No checks registered on this SHA yet -> keep polling.
+            if [ "${count:-0}" -eq 0 ]; then
+              echo "No checks on $head_sha yet (attempt $i/60)..."
+              sleep 30; continue
+            fi
+            # Fail fast if any check concluded "failure"/"cancelled"/etc.
+            if echo "$status_json" | jq -e 'any(.[]; .conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out" or .conclusion == "error")' >/dev/null; then
+              echo "A check did not pass; will not auto-merge:"
+              echo "$status_json" | jq -r '.[] | "  \(.name): \(.conclusion)"'
+              exit 1
+            fi
+            # Done when every check has a positive, terminal conclusion.
+            if echo "$status_json" | jq -e 'all(.[]; .conclusion == "success" or .conclusion == "skipped" or .conclusion == "neutral")' >/dev/null; then
+              echo "All checks passed:"
+              echo "$status_json" | jq -r '.[] | "  \(.name): \(.conclusion)"'
+              break
+            fi
+            echo "Checks still running (attempt $i/60)..."
+            sleep 30
+          done
+          # If we exhausted the loop without a passing terminal state, do not merge.
+          if echo "$status_json" | jq -e 'any(.[]; .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")' >/dev/null 2>&1; then
+            echo "CI did not reach a passing state within the timeout; will not auto-merge."
+            echo "$status_json" | jq -r '.[] | "  \(.name): \(.conclusion // .state)"' 2>/dev/null || true
+            exit 1
+          fi
+
+      - name: Auto-merge the PR
+        if: steps.changed.outputs.unchanged == 'false' && steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          set -euo pipefail
+          # squash + delete the branch. Fails (and therefore does not merge) if the
+          # repo has required reviews that the bot cannot satisfy.
+          gh pr merge "$PR_NUMBER" --squash --delete-branch
